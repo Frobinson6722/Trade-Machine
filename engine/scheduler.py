@@ -16,7 +16,7 @@ from engine.execution.live_trader import LiveTrader
 from engine.execution.position_manager import PositionManager
 from engine.execution.stage_manager import StageManager
 from engine.memory.memory_manager import MemoryManager
-from engine.dataflows.robinhood_provider import RobinhoodProvider
+from engine.dataflows.free_market_provider import FreeMarketProvider
 from engine.dataflows.news_provider import CryptoPanicNewsProvider
 from engine.dataflows.sentiment_provider import CryptoSentimentProvider
 from engine.dataflows.onchain_provider import DefiLlamaOnchainProvider
@@ -63,12 +63,8 @@ class TradingScheduler:
         self.executor = OrderExecutor(paper, live)
         self.position_manager = PositionManager()
 
-        # Data providers
-        self.data_provider = RobinhoodProvider(
-            self.config.get("robinhood_username", ""),
-            self.config.get("robinhood_password", ""),
-            self.config.get("robinhood_mfa_code", ""),
-        )
+        # Data providers — use free APIs for paper trading
+        self.data_provider = FreeMarketProvider()
         self.news_provider = CryptoPanicNewsProvider(self.config.get("cryptopanic_api_key", ""))
         self.sentiment_provider = CryptoSentimentProvider()
         self.onchain_provider = DefiLlamaOnchainProvider()

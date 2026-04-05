@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
 from backend.database import init_db
-from backend.routers import trades, portfolio, agents, learning, sessions, settings as settings_router, ws
+from backend.routers import trades, portfolio, agents, learning, sessions, settings as settings_router, ws, usage
 from backend.services.engine_bridge import EngineBridge
 
 # Global engine bridge instance
@@ -58,6 +58,7 @@ app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
 app.include_router(learning.router, prefix="/api/learning", tags=["Learning"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
 app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
+app.include_router(usage.router, prefix="/api/usage", tags=["Usage"])
 app.include_router(ws.router, tags=["WebSocket"])
 
 

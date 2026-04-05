@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LayoutDashboard, ArrowLeftRight, Brain, GraduationCap, Settings, Zap } from 'lucide-react'
 import StatusBadge from './StatusBadge'
+import HelpModal from './HelpModal'
 import { useWebSocket } from '../hooks/useWebSocket'
 
 const navItems = [
@@ -48,9 +49,10 @@ export default function Layout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-800">
+        <div className="p-4 border-t border-gray-800 space-y-3">
+          <HelpModal />
           <StatusBadge />
-          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
             {connected ? 'Connected' : 'Disconnected'}
           </div>

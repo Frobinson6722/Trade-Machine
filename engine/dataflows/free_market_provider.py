@@ -5,6 +5,7 @@ Provides multi-timeframe historical data: 24h, 7d, 30d, 90d, 365d.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import ssl
 from datetime import datetime, timezone
@@ -37,26 +38,55 @@ PAIR_TO_SYMBOL = {
 
 
 class FreeMarketProvider(DataProvider):
-    """Fetches crypto data from CoinGecko with multi-timeframe historical lookback."""
+    """Fetches crypto data from CoinGecko with multi-timeframe historical lookback.
+
+    Caches historical data (30d/90d/365d) for 1 hour to avoid rate limits.
+    CoinGecko free tier allows ~10-30 requests/minute.
+    """
 
     def __init__(self):
         self.base_url = "https://api.coingecko.com/api/v3"
+        self._history_cache: dict[str, dict] = {}  # key: "pair:days", value: {data, fetched_at}
+        self._cache_ttl = 3600  # Cache historical data for 1 hour
 
     def _get_coin_id(self, pair: str) -> str:
         return PAIR_TO_SYMBOL.get(pair, pair.split("-")[0].lower())
 
     async def _fetch_market_chart(self, coin_id: str, days: str) -> dict:
-        """Fetch market chart data for a specific timeframe."""
+        """Fetch market chart data with caching to avoid rate limits."""
+        import time
+        cache_key = f"{coin_id}:{days}"
+
+        # Check cache (skip for 1-day data which should be fresh)
+        if days != "1" and cache_key in self._history_cache:
+            cached = self._history_cache[cache_key]
+            if time.time() - cached["fetched_at"] < self._cache_ttl:
+                logger.debug(f"Using cached {days}d data for {coin_id}")
+                return cached["data"]
+
         try:
             async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 async with session.get(
                     f"{self.base_url}/coins/{coin_id}/market_chart",
                     params={"vs_currency": "usd", "days": days},
-                    timeout=aiohttp.ClientTimeout(total=15),
+                    timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
+                    if resp.status == 429:
+                        logger.warning(f"CoinGecko rate limited, using cache/fallback for {days}d")
+                        cached = self._history_cache.get(cache_key)
+                        return cached["data"] if cached else {}
                     if resp.status != 200:
+                        logger.warning(f"CoinGecko returned {resp.status} for {coin_id} {days}d")
                         return {}
-                    return await resp.json()
+                    data = await resp.json()
+
+            # Cache the result
+            self._history_cache[cache_key] = {"data": data, "fetched_at": time.time()}
+            return data
+        except asyncio.TimeoutError:
+            logger.warning(f"Timeout fetching {days}d chart for {coin_id}")
+            cached = self._history_cache.get(cache_key)
+            return cached["data"] if cached else {}
         except Exception as e:
             logger.error(f"Error fetching {days}d chart for {coin_id}: {e}")
             return {}
@@ -105,9 +135,10 @@ class FreeMarketProvider(DataProvider):
 
         result: dict[str, Any] = {"pair": pair}
 
-        # Fetch multiple timeframes
+        # Fetch multiple timeframes with rate-limit delays
         for label, days in [("7d", "7"), ("30d", "30"), ("90d", "90"), ("365d", "365")]:
             data = await self._fetch_market_chart(coin_id, days)
+            await asyncio.sleep(2)  # Rate limit: wait 2s between requests
             candles = self._parse_candles(data)
             if candles:
                 prices = [c["close"] for c in candles]

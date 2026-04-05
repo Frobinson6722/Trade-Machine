@@ -21,47 +21,34 @@ const agentTypes = [
 export default function AgentsPage() {
   const [agentFilter, setAgentFilter] = useState('')
   const [cycleFilter, setCycleFilter] = useState('')
-
   const { data, isLoading } = useAgentLogs({
     agent_name: agentFilter || undefined,
     cycle_id: cycleFilter || undefined,
     limit: 50,
   })
-
   const logs = data?.logs ?? []
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Brain className="w-6 h-6 text-accent" />
-        <h2 className="text-2xl font-bold">Agent Reasoning</h2>
+        <h2 className="text-2xl font-bold text-primary">Agent Reasoning</h2>
       </div>
 
-      {/* Filters */}
       <div className="flex gap-3">
-        <select
-          className="input"
-          value={agentFilter}
-          onChange={(e) => setAgentFilter(e.target.value)}
-        >
+        <select className="input" value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)}>
           {agentTypes.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
-
-        <input
-          className="input"
-          placeholder="Filter by cycle ID..."
-          value={cycleFilter}
-          onChange={(e) => setCycleFilter(e.target.value)}
-        />
+        <input className="input" placeholder="Filter by cycle ID..." value={cycleFilter}
+          onChange={(e) => setCycleFilter(e.target.value)} />
       </div>
 
-      {/* Logs */}
       {isLoading ? (
-        <div className="text-gray-500">Loading agent logs...</div>
+        <div className="text-muted">Loading agent logs...</div>
       ) : !logs.length ? (
-        <div className="card text-center text-gray-500 py-8">
+        <div className="card text-center text-muted py-8">
           No agent logs yet. Start a trading session to see agent reasoning.
         </div>
       ) : (
@@ -70,18 +57,14 @@ export default function AgentsPage() {
             <div key={log.id} className="card">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-surface-tertiary text-secondary">
                     {log.agent_name.replace(/_/g, ' ')}
                   </span>
-                  <span className="text-xs text-gray-600">Cycle: {log.cycle_id}</span>
+                  <span className="text-xs text-faint">Cycle: {log.cycle_id}</span>
                 </div>
-                <span className="text-xs text-gray-600">
-                  {new Date(log.created_at).toLocaleString()}
-                </span>
+                <span className="text-xs text-faint">{new Date(log.created_at).toLocaleString()}</span>
               </div>
-              <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
-                {log.content}
-              </div>
+              <div className="text-sm text-secondary whitespace-pre-wrap leading-relaxed">{log.content}</div>
             </div>
           ))}
         </div>

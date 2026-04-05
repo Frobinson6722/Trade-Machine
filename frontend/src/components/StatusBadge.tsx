@@ -3,7 +3,7 @@ import { useSessionStatus } from '../hooks/useApi'
 const statusColors: Record<string, string> = {
   running: 'bg-green-500',
   paused: 'bg-yellow-500',
-  stopped: 'bg-gray-500',
+  stopped: 'bg-gray-400',
 }
 
 const stageLabels: Record<string, string> = {
@@ -24,10 +24,10 @@ export default function StatusBadge() {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <span className={`w-2 h-2 rounded-full ${statusColors[status] || 'bg-gray-500'}`} />
-        <span className="text-sm font-medium capitalize">{status}</span>
+        <span className={`w-2 h-2 rounded-full ${statusColors[status]}`} />
+        <span className="text-sm font-medium capitalize text-primary">{status}</span>
       </div>
-      <div className="text-xs text-gray-500">
+      <div className="text-xs text-faint">
         {stageLabels[stage] || stage} · {mode === 'live' ? 'LIVE' : 'Paper'}
       </div>
     </div>

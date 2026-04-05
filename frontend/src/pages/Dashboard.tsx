@@ -92,8 +92,8 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Dashboard</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <h2 className="text-2xl font-bold text-primary">Dashboard</h2>
+          <p className="text-sm text-muted mt-1">
             Stage: {typeof currentStage === 'string' ? currentStage : 'paper'} | Mode: {mode}
           </p>
         </div>
@@ -158,32 +158,34 @@ export default function Dashboard() {
 
       {/* System status banner */}
       {isRunning && !isPaused && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+        <div className="flex items-center gap-3 px-4 py-3 bg-green-500/10 border border-green-300 rounded-xl">
           <div className="relative flex h-3 w-3">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
           </div>
-          <span className="text-sm text-green-400">
+          <span className="text-sm text-green-700 font-medium">
             Engine is running — analyzing XRP & DOGE with Claude AI agents. Cycles run every 15 minutes.
           </span>
         </div>
       )}
 
       {isPaused && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-          <Pause className="w-4 h-4 text-yellow-400" />
-          <span className="text-sm text-yellow-400">
+        <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-300 rounded-xl">
+          <Pause className="w-4 h-4 text-yellow-600" />
+          <span className="text-sm text-yellow-700 font-medium">
             Engine is paused. No new analysis cycles will run until you resume.
           </span>
         </div>
       )}
 
       {!isRunning && !startSession.isPending && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg">
-          <Info className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-400">
-            Engine is stopped. Click "Start Paper Trading" to begin analyzing XRP & DOGE. Make sure your Anthropic API key is set in the .env file.
-          </span>
+        <div className="card">
+          <div className="flex items-center gap-3">
+            <Info className="w-4 h-4 text-muted" />
+            <span className="text-sm text-muted">
+              Engine is stopped. Click "Start Paper Trading" to begin analyzing XRP & DOGE. Make sure your Anthropic API key is set in the .env file.
+            </span>
+          </div>
         </div>
       )}
 
@@ -202,14 +204,14 @@ export default function Dashboard() {
       {graduationDetails && (
         <div className="card">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-400">Stage Progress</h3>
-            <span className="text-xs text-gray-500">
+            <h3 className="text-sm font-medium text-muted">Stage Progress</h3>
+            <span className="text-xs text-faint">
               {tradesCompleted} trades | {(stageWinRate * 100).toFixed(1)}% win rate
             </span>
           </div>
-          <div className="text-sm text-gray-300">{graduationDetails}</div>
+          <div className="text-sm text-secondary">{graduationDetails}</div>
           {graduationEligible && (
-            <div className="mt-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded text-green-400 text-sm">
+            <div className="mt-2 px-3 py-1.5 bg-green-500/10 border border-green-300 rounded-lg text-green-700 text-sm font-medium">
               Eligible for graduation!
             </div>
           )}
@@ -221,7 +223,7 @@ export default function Dashboard() {
 
       {/* Recent Trades */}
       <div>
-        <h3 className="text-lg font-medium mb-3">Recent Trades</h3>
+        <h3 className="text-lg font-semibold text-primary mb-3">Recent Trades</h3>
         <TradeTable trades={tradesData?.trades ?? []} />
       </div>
     </div>

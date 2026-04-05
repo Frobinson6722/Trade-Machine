@@ -19,60 +19,38 @@ export default function TradesPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Trade History</h2>
+      <h2 className="text-2xl font-bold text-primary">Trade History</h2>
 
-      {/* Filters */}
       <div className="flex gap-3">
-        <select
-          className="input"
-          value={pair}
-          onChange={(e) => { setPair(e.target.value); setPage(0) }}
-        >
+        <select className="input" value={pair}
+          onChange={(e) => { setPair(e.target.value); setPage(0) }}>
           <option value="">All Pairs</option>
           <option value="XRP-USD">XRP-USD</option>
           <option value="DOGE-USD">DOGE-USD</option>
           <option value="BTC-USD">BTC-USD</option>
           <option value="ETH-USD">ETH-USD</option>
         </select>
-
-        <select
-          className="input"
-          value={status}
-          onChange={(e) => { setStatus(e.target.value); setPage(0) }}
-        >
+        <select className="input" value={status}
+          onChange={(e) => { setStatus(e.target.value); setPage(0) }}>
           <option value="">All Statuses</option>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
         </select>
       </div>
 
-      {/* Table */}
       {isLoading ? (
-        <div className="text-gray-500">Loading trades...</div>
+        <div className="text-muted">Loading trades...</div>
       ) : (
         <TradeTable trades={data?.trades ?? []} />
       )}
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <button
-            className="px-3 py-1 rounded bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50"
-            disabled={page === 0}
-            onClick={() => setPage(page - 1)}
-          >
-            Previous
-          </button>
-          <span className="text-sm text-gray-500">
-            Page {page + 1} of {totalPages}
-          </span>
-          <button
-            className="px-3 py-1 rounded bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50"
-            disabled={page >= totalPages - 1}
-            onClick={() => setPage(page + 1)}
-          >
-            Next
-          </button>
+          <button className="px-3 py-1.5 rounded-lg bg-surface-tertiary text-muted hover:text-primary disabled:opacity-50 transition-colors"
+            disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
+          <span className="text-sm text-faint">Page {page + 1} of {totalPages}</span>
+          <button className="px-3 py-1.5 rounded-lg bg-surface-tertiary text-muted hover:text-primary disabled:opacity-50 transition-colors"
+            disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>Next</button>
         </div>
       )}
     </div>

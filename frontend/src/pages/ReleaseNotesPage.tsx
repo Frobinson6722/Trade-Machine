@@ -1,5 +1,4 @@
 import { FileText, Zap, Brain, BarChart3, Eye, Sun, BookOpen, TrendingUp, Shield } from 'lucide-react'
-import { useTheme } from '../hooks/useTheme'
 
 interface Release {
   version: string
@@ -142,52 +141,45 @@ const releases: Release[] = [
 ]
 
 export default function ReleaseNotesPage() {
-  const { theme } = useTheme()
-  const isLight = theme === 'light'
-
   return (
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center gap-3">
-        <FileText className={`w-6 h-6 ${isLight ? 'text-amber-600' : 'text-accent'}`} />
-        <h2 className="text-2xl font-bold">Release Notes</h2>
+        <FileText className="w-6 h-6 text-accent" />
+        <h2 className="text-2xl font-bold text-primary">Release Notes</h2>
       </div>
-      <p className={`text-sm ${isLight ? 'text-stone-500' : 'text-gray-500'}`}>
-        A running record of every major change to Trade Machine.
-      </p>
+      <p className="text-sm text-muted">A running record of every major change to Trade Machine.</p>
 
       <div className="space-y-6">
         {releases.map((release, idx) => {
           const Icon = release.icon
           return (
-            <div key={release.version} className={`card ${idx === 0 ? isLight ? 'border-amber-300 bg-amber-50' : 'border-accent/30' : ''}`}>
+            <div key={release.version} className="card">
               <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-lg ${isLight ? 'bg-amber-100' : 'bg-accent/10'}`}>
-                  <Icon className={`w-5 h-5 ${isLight ? 'text-amber-600' : 'text-accent'}`} />
+                <div className="p-2 rounded-lg bg-[var(--accent-subtle)]">
+                  <Icon className="w-5 h-5 text-accent" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${isLight ? 'bg-amber-200 text-amber-800' : 'bg-accent/20 text-accent'}`}>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] text-accent">
                       v{release.version}
                     </span>
-                    <span className={`text-xs ${isLight ? 'text-stone-400' : 'text-gray-500'}`}>{release.date}</span>
+                    <span className="text-xs text-faint">{release.date}</span>
                     {idx === 0 && (
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded ${isLight ? 'bg-green-100 text-green-700' : 'bg-green-500/20 text-green-400'}`}>
-                        LATEST
-                      </span>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-700">LATEST</span>
                     )}
                   </div>
-                  <h3 className="font-semibold text-lg mb-2">{release.title}</h3>
+                  <h3 className="font-semibold text-lg text-primary mb-2">{release.title}</h3>
 
                   <div className="space-y-1.5 mb-3">
                     {release.highlights.map((h, i) => (
                       <div key={i} className="flex items-start gap-2">
-                        <span className={`text-xs mt-0.5 ${isLight ? 'text-amber-600' : 'text-accent'}`}>●</span>
-                        <span className={`text-sm font-medium ${isLight ? 'text-stone-700' : 'text-gray-200'}`}>{h}</span>
+                        <span className="text-xs mt-0.5 text-accent">●</span>
+                        <span className="text-sm font-medium text-secondary">{h}</span>
                       </div>
                     ))}
                   </div>
 
-                  <details className={`text-xs ${isLight ? 'text-stone-500' : 'text-gray-500'}`}>
+                  <details className="text-xs text-muted">
                     <summary className="cursor-pointer hover:underline">Technical details</summary>
                     <ul className="mt-2 space-y-1 ml-3">
                       {release.details.map((d, i) => (

@@ -3,22 +3,22 @@ import { Activity, TrendingUp, TrendingDown, Brain, Search, Shield, CheckCircle2
 import { useActivityFeed } from '../hooks/useActivityFeed'
 
 const iconMap = {
-  analyzing: { Icon: Search, color: 'text-blue-400' },
-  bull: { Icon: TrendingUp, color: 'text-green-400' },
-  bear: { Icon: TrendingDown, color: 'text-red-400' },
-  deciding: { Icon: Brain, color: 'text-yellow-400' },
-  approved: { Icon: CheckCircle2, color: 'text-green-400' },
-  rejected: { Icon: XCircle, color: 'text-gray-400' },
-  data: { Icon: Database, color: 'text-cyan-400' },
-  thinking: { Icon: Zap, color: 'text-purple-400' },
-  risk: { Icon: Shield, color: 'text-orange-400' },
+  analyzing: { Icon: Search, color: 'text-blue-600' },
+  bull: { Icon: TrendingUp, color: 'text-profit' },
+  bear: { Icon: TrendingDown, color: 'text-loss' },
+  deciding: { Icon: Brain, color: 'text-yellow-600' },
+  approved: { Icon: CheckCircle2, color: 'text-profit' },
+  rejected: { Icon: XCircle, color: 'text-muted' },
+  data: { Icon: Database, color: 'text-cyan-600' },
+  thinking: { Icon: Zap, color: 'text-purple-600' },
+  risk: { Icon: Shield, color: 'text-orange-600' },
 }
 
 const phaseConfig = {
-  data: { label: 'DATA', color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' },
-  analysis: { label: 'ANALYSIS', color: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
-  research: { label: 'RESEARCH', color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' },
-  action: { label: 'ACTION', color: 'bg-green-500/15 text-green-400 border-green-500/30' },
+  data: { label: 'DATA', color: 'bg-cyan-500/10 text-cyan-700 border-cyan-300' },
+  analysis: { label: 'ANALYSIS', color: 'bg-blue-500/10 text-blue-700 border-blue-300' },
+  research: { label: 'RESEARCH', color: 'bg-yellow-500/10 text-yellow-700 border-yellow-300' },
+  action: { label: 'ACTION', color: 'bg-green-500/10 text-green-700 border-green-300' },
 }
 
 export default function LiveActivityFeed() {
@@ -34,7 +34,7 @@ export default function LiveActivityFeed() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-accent" />
-          <h3 className="text-sm font-medium text-gray-400">Live Activity</h3>
+          <h3 className="text-sm font-medium text-muted">Live Activity</h3>
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2">
@@ -44,7 +44,7 @@ export default function LiveActivityFeed() {
               </span>
             ))}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5 text-xs text-faint">
             <Clock className="w-3 h-3" />
             <span>{feed.length}</span>
           </div>
@@ -53,7 +53,7 @@ export default function LiveActivityFeed() {
 
       <div ref={feedRef} className="space-y-0.5 max-h-96 overflow-y-auto pr-1">
         {feed.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm py-6">
+          <div className="text-center text-muted text-sm py-6">
             Waiting for engine activity...
           </div>
         ) : (
@@ -69,20 +69,20 @@ export default function LiveActivityFeed() {
                     <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${phase.color}`}>
                       {phase.label}
                     </span>
-                    <div className="flex-1 border-t border-gray-800" />
+                    <div className="flex-1 border-t border-border" />
                   </div>
                 )}
-                <div className="flex gap-2.5 py-1.5 px-2 rounded hover:bg-gray-800/30 transition-colors">
+                <div className="flex gap-2.5 py-1.5 px-2 rounded hover:bg-surface-hover transition-colors">
                   <div className="mt-0.5 shrink-0">
                     <Icon className={`w-4 h-4 ${color}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-sm text-gray-200">{item.message}</span>
-                      <span className="text-[10px] text-gray-600 shrink-0">{item.timestamp}</span>
+                      <span className="text-sm text-primary">{item.message}</span>
+                      <span className="text-[10px] text-faint shrink-0">{item.timestamp}</span>
                     </div>
                     {item.detail && (
-                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{item.detail}</p>
+                      <p className="text-xs text-muted mt-0.5 leading-relaxed">{item.detail}</p>
                     )}
                   </div>
                 </div>

@@ -47,21 +47,21 @@ export default function SettingsPage() {
     })
   }
 
-  if (isLoading) return <div className="text-gray-500">Loading settings...</div>
+  if (isLoading) return <div className="text-faint">Loading settings...</div>
 
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-3">
         <SettingsIcon className="w-6 h-6 text-accent" />
-        <h2 className="text-2xl font-bold">Settings</h2>
+        <h2 className="text-2xl font-bold text-primary">Settings</h2>
       </div>
 
       {/* Claude Model */}
       <div className="card space-y-3">
         <h3 className="font-medium">Claude AI Configuration</h3>
-        <p className="text-xs text-gray-500">Powered by Anthropic Claude. Set your API key in the .env file.</p>
+        <p className="text-xs text-faint">Powered by Anthropic Claude. Set your API key in the .env file.</p>
         <div>
-          <label className="text-sm text-gray-400 block mb-1">Claude Model</label>
+          <label className="text-sm text-muted block mb-1">Claude Model</label>
           <select
             className="input w-full"
             value={form.llm_model}
@@ -78,7 +78,7 @@ export default function SettingsPage() {
       <div className="card space-y-3">
         <h3 className="font-medium">Trading Configuration</h3>
         <div>
-          <label className="text-sm text-gray-400 block mb-1">Trading Pairs (comma-separated)</label>
+          <label className="text-sm text-muted block mb-1">Trading Pairs (comma-separated)</label>
           <input
             className="input w-full"
             value={form.trading_pairs}
@@ -86,7 +86,7 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className="text-sm text-gray-400 block mb-1">
+          <label className="text-sm text-muted block mb-1">
             Cycle Interval (seconds): {form.cycle_interval_seconds}
           </label>
           <input
@@ -106,7 +106,7 @@ export default function SettingsPage() {
         <h3 className="font-medium">Risk Parameters</h3>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-sm text-gray-400 block mb-1">Max Position Size (%)</label>
+            <label className="text-sm text-muted block mb-1">Max Position Size (%)</label>
             <input
               type="number"
               className="input w-full"
@@ -115,7 +115,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="text-sm text-gray-400 block mb-1">Max Portfolio Allocation (%)</label>
+            <label className="text-sm text-muted block mb-1">Max Portfolio Allocation (%)</label>
             <input
               type="number"
               className="input w-full"
@@ -124,7 +124,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="text-sm text-gray-400 block mb-1">Default Stop Loss (%)</label>
+            <label className="text-sm text-muted block mb-1">Default Stop Loss (%)</label>
             <input
               type="number"
               className="input w-full"
@@ -133,7 +133,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="text-sm text-gray-400 block mb-1">Default Take Profit (%)</label>
+            <label className="text-sm text-muted block mb-1">Default Take Profit (%)</label>
             <input
               type="number"
               className="input w-full"
@@ -150,15 +150,15 @@ export default function SettingsPage() {
       </button>
 
       {/* Live Trading Toggle */}
-      <div className="card border-red-900">
+      <div className="card border-red-300">
         <div className="flex items-center gap-2 mb-3">
           <AlertTriangle className="w-5 h-5 text-red-500" />
-          <h3 className="font-medium text-red-400">Live Trading</h3>
+          <h3 className="font-medium text-red-600">Live Trading</h3>
         </div>
-        <p className="text-sm text-gray-400 mb-3">
-          Current mode: <span className="font-medium text-white">{settings?.mode ?? 'paper'}</span>
+        <p className="text-sm text-muted mb-3">
+          Current mode: <span className="font-medium text-primary font-semibold">{settings?.mode ?? 'paper'}</span>
           {' | '}
-          Stage: <span className="font-medium text-white">{settings?.current_stage ?? 'paper'}</span>
+          Stage: <span className="font-medium text-primary font-semibold">{settings?.current_stage ?? 'paper'}</span>
         </p>
 
         {!showLiveConfirm ? (
@@ -171,7 +171,7 @@ export default function SettingsPage() {
           </button>
         ) : (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 space-y-3">
-            <p className="text-sm text-red-300 font-medium">
+            <p className="text-sm text-red-700 font-medium">
               WARNING: You are about to enable LIVE trading with real funds.
               This will execute real trades on Robinhood.
             </p>
@@ -186,7 +186,7 @@ export default function SettingsPage() {
                 Confirm: Go Live
               </button>
               <button
-                className="px-4 py-2 rounded-lg bg-gray-800 text-gray-300"
+                className="px-4 py-2 rounded-lg bg-surface-tertiary text-secondary"
                 onClick={() => setShowLiveConfirm(false)}
               >
                 Cancel

@@ -110,3 +110,12 @@ async def get_trade(trade_id: int, request: Request, db: AsyncSession = Depends(
 
     from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="Trade not found")
+
+
+@router.delete("")
+async def clear_trades(db: AsyncSession = Depends(get_db)):
+    """Delete all trade history."""
+    from sqlalchemy import delete
+    await db.execute(delete(Trade))
+    await db.commit()
+    return {"status": "ok", "message": "Trade history cleared"}

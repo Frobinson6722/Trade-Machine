@@ -39,6 +39,9 @@ export const getTrades = (params?: { pair?: string; status?: string; limit?: num
 export const getTrade = (id: number) =>
   fetchApi<import('./types').Trade>(`/trades/${id}`)
 
+export const clearTrades = () =>
+  fetchApi('/trades', { method: 'DELETE' })
+
 // Portfolio
 export const getPortfolio = () =>
   fetchApi<import('./types').Portfolio>('/portfolio')

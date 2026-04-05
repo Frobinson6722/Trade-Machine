@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSessionStatus, useTrades, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
+import { clearTrades as clearTradesApi } from '../lib/api'
 import { Play, Square, Pause, SkipForward, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 
 type Toast = { message: string; type: 'success' | 'error' | 'info' }
@@ -12,6 +14,7 @@ export default function Dashboard() {
   const stopSession = useStopSession()
   const pauseSession = usePauseSession()
   const resumeSession = useResumeSession()
+  const queryClient = useQueryClient()
   const [toast, setToast] = useState<Toast | null>(null)
   const [period, setPeriod] = useState<Period>('all')
 
@@ -51,6 +54,16 @@ export default function Dashboard() {
     })
   }
 
+  const handleClearTrades = async () => {
+    try {
+      await clearTradesApi()
+      queryClient.invalidateQueries({ queryKey: ['trades'] })
+      showToast('Trade history cleared.', 'info')
+    } catch (err: any) {
+      showToast(`Failed to clear: ${err.message}`, 'error')
+    }
+  }
+
   const isRunning = Boolean((status as any)?.running)
   const isPaused = Boolean((status as any)?.paused)
 
@@ -84,6 +97,7 @@ export default function Dashboard() {
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr)
     return d.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
       month: 'short', day: 'numeric',
       hour: 'numeric', minute: '2-digit',
       hour12: true
@@ -180,7 +194,15 @@ export default function Dashboard() {
 
       {/* Trade List */}
       <div>
-        <h3 className="text-sm font-medium text-muted mb-3">Trades</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-muted">Trades</h3>
+          {displayTrades.length > 0 && (
+            <button onClick={handleClearTrades}
+              className="text-xs text-muted hover:text-loss transition-colors">
+              Clear History
+            </button>
+          )}
+        </div>
         {displayTrades.length === 0 ? (
           <div className="card text-center text-muted py-8">
             No trades yet. {!isRunning && 'Click Start to begin.'}

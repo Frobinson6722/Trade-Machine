@@ -3,12 +3,19 @@
 @tailwind utilities;
 
 @layer base {
+  /* Dark mode (default) */
   body {
     @apply bg-gray-950 text-gray-100 antialiased;
+  }
+
+  /* Light mode — warm Claude-inspired palette */
+  body.light-mode {
+    @apply bg-stone-50 text-stone-800;
   }
 }
 
 @layer components {
+  /* Dark mode cards/inputs */
   .card {
     @apply bg-gray-900 border border-gray-800 rounded-lg p-4;
   }
@@ -20,5 +27,16 @@
   }
   .input {
     @apply bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:border-accent;
+  }
+
+  /* Light mode overrides */
+  body.light-mode .card {
+    @apply bg-white border-stone-200 text-stone-800 shadow-sm;
+  }
+  body.light-mode .input {
+    @apply bg-stone-50 border-stone-300 text-stone-800 focus:border-amber-500;
+  }
+  body.light-mode .btn-primary {
+    @apply bg-amber-600 hover:bg-amber-700;
   }
 }

@@ -1,5 +1,6 @@
 import { Brain, Lightbulb, Settings } from 'lucide-react'
 import type { Reflection, StrategyUpdate, Hypothesis } from '../lib/types'
+import { formatTime } from '../lib/time'
 
 interface Props {
   reflections: Reflection[]
@@ -57,7 +58,7 @@ export default function LearningTimeline({ reflections, strategyUpdates, hypothe
                   {(item.data as Hypothesis).status}
                 </span>
               )}
-              <span className="text-xs text-faint ml-auto">{new Date(item.timestamp).toLocaleString()}</span>
+              <span className="text-xs text-faint ml-auto">{formatTime(item.timestamp)}</span>
             </div>
             <div className="text-sm text-secondary leading-relaxed">
               {item.type === 'reflection' && (item.data as Reflection).reflection_text}

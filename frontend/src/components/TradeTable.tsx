@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { Trade } from '../lib/types'
+import { formatTime } from '../lib/time'
 import AgentReasoningPanel from './AgentReasoningPanel'
 
 interface Props {
@@ -83,7 +84,7 @@ export default function TradeTable({ trades, showExpand = true }: Props) {
                   </span>
                 </td>
                 <td className="py-3 text-faint text-xs">
-                  {new Date(trade.opened_at).toLocaleString()}
+                  {formatTime(trade.opened_at)}
                 </td>
               </tr>
               {showExpand && expandedId === trade.id && (

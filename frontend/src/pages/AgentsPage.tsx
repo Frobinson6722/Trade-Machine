@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAgentLogs } from '../hooks/useApi'
 import { Brain } from 'lucide-react'
+import { formatTime } from '../lib/time'
 
 const agentTypes = [
   { value: '', label: 'All Agents' },
@@ -62,7 +63,7 @@ export default function AgentsPage() {
                   </span>
                   <span className="text-xs text-faint">Cycle: {log.cycle_id}</span>
                 </div>
-                <span className="text-xs text-faint">{new Date(log.created_at).toLocaleString()}</span>
+                <span className="text-xs text-faint">{formatTime(log.created_at)}</span>
               </div>
               <div className="text-sm text-secondary whitespace-pre-wrap leading-relaxed">{log.content}</div>
             </div>

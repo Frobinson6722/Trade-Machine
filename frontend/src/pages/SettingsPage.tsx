@@ -9,8 +9,7 @@ export default function SettingsPage() {
   const stopSession = useStopSession()
 
   const [form, setForm] = useState({
-    llm_provider: 'openai',
-    llm_model: 'gpt-4o',
+    llm_model: 'claude-sonnet-4-20250514',
     trading_pairs: 'BTC-USD,ETH-USD',
     cycle_interval_seconds: 900,
     max_position_size_pct: 5,
@@ -20,12 +19,10 @@ export default function SettingsPage() {
   })
 
   const [showLiveConfirm, setShowLiveConfirm] = useState(false)
-  const [authToken, setAuthToken] = useState('')
 
   useEffect(() => {
     if (settings) {
       setForm({
-        llm_provider: settings.llm_provider,
         llm_model: settings.llm_model,
         trading_pairs: settings.trading_pairs.join(','),
         cycle_interval_seconds: settings.cycle_interval_seconds,
@@ -39,7 +36,7 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     updateSettings.mutate({
-      llm_provider: form.llm_provider,
+      llm_provider: 'anthropic',
       llm_model: form.llm_model,
       trading_pairs: form.trading_pairs.split(',').map((s) => s.trim()),
       cycle_interval_seconds: form.cycle_interval_seconds,
@@ -48,10 +45,6 @@ export default function SettingsPage() {
       default_stop_loss_pct: form.default_stop_loss_pct,
       default_take_profit_pct: form.default_take_profit_pct,
     })
-  }
-
-  const handleSaveToken = () => {
-    localStorage.setItem('auth_token', authToken)
   }
 
   if (isLoading) return <div className="text-gray-500">Loading settings...</div>
@@ -63,48 +56,21 @@ export default function SettingsPage() {
         <h2 className="text-2xl font-bold">Settings</h2>
       </div>
 
-      {/* Auth Token */}
+      {/* Claude Model */}
       <div className="card space-y-3">
-        <h3 className="font-medium">Authentication</h3>
+        <h3 className="font-medium">Claude AI Configuration</h3>
+        <p className="text-xs text-gray-500">Powered by Anthropic Claude. Set your API key in the .env file.</p>
         <div>
-          <label className="text-sm text-gray-400 block mb-1">Auth Token</label>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              className="input flex-1"
-              value={authToken}
-              onChange={(e) => setAuthToken(e.target.value)}
-              placeholder="Enter your auth token..."
-            />
-            <button className="btn-primary" onClick={handleSaveToken}>Save</button>
-          </div>
-        </div>
-      </div>
-
-      {/* LLM Settings */}
-      <div className="card space-y-3">
-        <h3 className="font-medium">LLM Configuration</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-sm text-gray-400 block mb-1">Provider</label>
-            <select
-              className="input w-full"
-              value={form.llm_provider}
-              onChange={(e) => setForm({ ...form, llm_provider: e.target.value })}
-            >
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="google">Google</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-gray-400 block mb-1">Model</label>
-            <input
-              className="input w-full"
-              value={form.llm_model}
-              onChange={(e) => setForm({ ...form, llm_model: e.target.value })}
-            />
-          </div>
+          <label className="text-sm text-gray-400 block mb-1">Claude Model</label>
+          <select
+            className="input w-full"
+            value={form.llm_model}
+            onChange={(e) => setForm({ ...form, llm_model: e.target.value })}
+          >
+            <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (recommended)</option>
+            <option value="claude-opus-4-20250514">Claude Opus 4 (most capable)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
+          </select>
         </div>
       </div>
 

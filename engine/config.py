@@ -4,11 +4,12 @@ import os
 from typing import Any
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    # LLM settings
-    "llm_provider": os.getenv("LLM_PROVIDER", "openai"),
-    "llm_model": os.getenv("LLM_MODEL", "gpt-4o"),
-    "deep_think_model": os.getenv("DEEP_THINK_MODEL", "gpt-4o"),
-    "quick_think_model": os.getenv("QUICK_THINK_MODEL", "gpt-4o-mini"),
+    # LLM settings — Claude only
+    "llm_provider": "anthropic",
+    "llm_model": os.getenv("LLM_MODEL", "claude-sonnet-4-20250514"),
+    "deep_think_model": os.getenv("DEEP_THINK_MODEL", "claude-sonnet-4-20250514"),
+    "quick_think_model": os.getenv("QUICK_THINK_MODEL", "claude-haiku-4-5-20251001"),
+    "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY", ""),
 
     # Trading pairs
     "trading_pairs": os.getenv("DEFAULT_TRADING_PAIRS", "BTC-USD,ETH-USD").split(","),

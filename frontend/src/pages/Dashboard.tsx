@@ -1,23 +1,19 @@
 import { useState } from 'react'
-import PnLCard from '../components/PnLCard'
-import EquityCurve from '../components/EquityCurve'
-import TradeTable from '../components/TradeTable'
-import LiveActivityFeed from '../components/LiveActivityFeed'
-import { useSessionStatus, useTrades, useEquityCurve, usePortfolio, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
+import { useSessionStatus, useTrades, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
 import { Play, Square, Pause, SkipForward, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 
 type Toast = { message: string; type: 'success' | 'error' | 'info' }
+type Period = 'today' | '7d' | '30d' | 'all'
 
 export default function Dashboard() {
   const { data: status } = useSessionStatus()
-  const { data: tradesData } = useTrades({ limit: 20 })
-  const { data: equityData } = useEquityCurve()
-  const { data: portfolio } = usePortfolio()
+  const { data: tradesData } = useTrades({ limit: 200 })
   const startSession = useStartSession()
   const stopSession = useStopSession()
   const pauseSession = usePauseSession()
   const resumeSession = useResumeSession()
   const [toast, setToast] = useState<Toast | null>(null)
+  const [period, setPeriod] = useState<Period>('all')
 
   const showToast = (message: string, type: Toast['type'] = 'info') => {
     setToast({ message, type })
@@ -28,7 +24,7 @@ export default function Dashboard() {
     startSession.mutate(
       { mode: 'paper' },
       {
-        onSuccess: () => showToast('Paper trading session started! The engine will analyze markets every 15 minutes.', 'success'),
+        onSuccess: () => showToast('Paper trading started.', 'success'),
         onError: (err) => showToast(`Failed to start: ${err.message}`, 'error'),
       }
     )
@@ -36,47 +32,67 @@ export default function Dashboard() {
 
   const handleStop = () => {
     stopSession.mutate(undefined, {
-      onSuccess: () => showToast('Trading session stopped.', 'info'),
+      onSuccess: () => showToast('Stopped.', 'info'),
       onError: (err) => showToast(`Failed to stop: ${err.message}`, 'error'),
     })
   }
 
   const handlePause = () => {
     pauseSession.mutate(undefined, {
-      onSuccess: () => showToast('Trading session paused.', 'info'),
+      onSuccess: () => showToast('Paused.', 'info'),
       onError: (err) => showToast(`Failed to pause: ${err.message}`, 'error'),
     })
   }
 
   const handleResume = () => {
     resumeSession.mutate(undefined, {
-      onSuccess: () => showToast('Trading session resumed!', 'success'),
+      onSuccess: () => showToast('Resumed.', 'success'),
       onError: (err) => showToast(`Failed to resume: ${err.message}`, 'error'),
     })
   }
 
-  // Safely extract stats with defaults
-  const rawStats = (status as any)?.stats ?? {}
-  const totalPnl = Number(rawStats.total_pnl) || 0
-  const winRate = Number(rawStats.win_rate) || 0
-  const totalTrades = Number(rawStats.total) || Number(rawStats.total_trades) || 0
-  const avgPnl = Number(rawStats.avg_pnl) || 0
-
   const isRunning = Boolean((status as any)?.running)
   const isPaused = Boolean((status as any)?.paused)
-  const currentStage = (status as any)?.stage?.current_stage ?? (status as any)?.stage ?? 'paper'
-  const mode = (status as any)?.mode ?? 'paper'
 
-  // Safely extract stage info
-  const stage = (status as any)?.stage ?? {}
-  const tradesCompleted = Number(stage.trades_completed) || 0
-  const stageWinRate = Number(stage.win_rate) || 0
-  const graduationDetails = stage.graduation_check?.details ?? ''
-  const graduationEligible = Boolean(stage.graduation_check?.eligible)
+  // Filter trades by period
+  const allTrades = tradesData?.trades ?? []
+  const closedTrades = allTrades.filter(t => t.status === 'closed' && t.pnl !== null)
+
+  const now = new Date()
+  const filteredTrades = closedTrades.filter(t => {
+    if (period === 'all') return true
+    const tradeDate = new Date(t.closed_at || t.opened_at)
+    const diffMs = now.getTime() - tradeDate.getTime()
+    const diffDays = diffMs / (1000 * 60 * 60 * 24)
+    if (period === 'today') return diffDays < 1
+    if (period === '7d') return diffDays < 7
+    if (period === '30d') return diffDays < 30
+    return true
+  })
+
+  // Cumulative P&L for filtered period
+  const totalPnl = filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+  const wins = filteredTrades.filter(t => (t.pnl || 0) > 0).length
+  const losses = filteredTrades.filter(t => (t.pnl || 0) <= 0).length
+  const winRate = filteredTrades.length > 0 ? (wins / filteredTrades.length) * 100 : 0
+
+  // Show all trades (open + closed) sorted by most recent
+  const displayTrades = allTrades.slice().sort((a, b) =>
+    new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime()
+  )
+
+  const formatTime = (dateStr: string) => {
+    const d = new Date(dateStr)
+    return d.toLocaleString('en-US', {
+      month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+      hour12: true
+    })
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Toast notification */}
+    <div className="space-y-6 max-w-3xl mx-auto">
+      {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border max-w-md ${
           toast.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
@@ -90,168 +106,120 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Controls */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-primary">Dashboard</h2>
-          <p className="text-sm text-muted mt-1">
-            Stage: {typeof currentStage === 'string' ? currentStage : 'paper'} | Mode: {mode}
-          </p>
+        <div className="flex items-center gap-3">
+          {isRunning && !isPaused && (
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+              </span>
+              <span className="text-sm text-green-600 font-medium">Running</span>
+            </div>
+          )}
+          {isPaused && (
+            <span className="text-sm text-yellow-600 font-medium">Paused</span>
+          )}
+          {!isRunning && (
+            <span className="text-sm text-muted">Stopped</span>
+          )}
         </div>
-
         <div className="flex gap-2">
           {!isRunning ? (
-            <button
-              className="btn-primary flex items-center gap-2"
-              onClick={handleStart}
-              disabled={startSession.isPending}
-            >
-              {startSession.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Play className="w-4 h-4" />
-              )}
-              {startSession.isPending ? 'Starting...' : 'Start Paper Trading'}
+            <button className="btn-primary flex items-center gap-2" onClick={handleStart} disabled={startSession.isPending}>
+              {startSession.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {startSession.isPending ? 'Starting...' : 'Start'}
             </button>
           ) : isPaused ? (
-            <button
-              className="btn-primary flex items-center gap-2"
-              onClick={handleResume}
-              disabled={resumeSession.isPending}
-            >
-              {resumeSession.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <SkipForward className="w-4 h-4" />
-              )}
-              {resumeSession.isPending ? 'Resuming...' : 'Resume'}
+            <button className="btn-primary flex items-center gap-2" onClick={handleResume} disabled={resumeSession.isPending}>
+              {resumeSession.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <SkipForward className="w-4 h-4" />}
+              Resume
             </button>
           ) : (
-            <button
-              className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2"
-              onClick={handlePause}
-              disabled={pauseSession.isPending}
-            >
-              {pauseSession.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Pause className="w-4 h-4" />
-              )}
-              {pauseSession.isPending ? 'Pausing...' : 'Pause'}
+            <button className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2"
+              onClick={handlePause} disabled={pauseSession.isPending}>
+              {pauseSession.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pause className="w-4 h-4" />}
+              Pause
             </button>
           )}
           {isRunning && (
-            <button
-              className="btn-danger flex items-center gap-2"
-              onClick={handleStop}
-              disabled={stopSession.isPending}
-            >
-              {stopSession.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Square className="w-4 h-4" />
-              )}
-              {stopSession.isPending ? 'Stopping...' : 'Stop'}
+            <button className="btn-danger flex items-center gap-2" onClick={handleStop} disabled={stopSession.isPending}>
+              {stopSession.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+              Stop
             </button>
           )}
         </div>
       </div>
 
-      {/* System status banner */}
-      {isRunning && !isPaused && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-green-500/10 border border-green-300 rounded-xl">
-          <div className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-          </div>
-          <span className="text-sm text-green-700 font-medium">
-            Engine is running — rules-based trading XRP with Claude AI agents. Scanning every 60 seconds. No AI costs for trades.
+      {/* Big P&L Display */}
+      <div className="card text-center py-8">
+        <div className="text-sm text-muted mb-2">
+          Total P&L
+          <span className="ml-2 text-faint">
+            ({filteredTrades.length} trades | {winRate.toFixed(0)}% win rate)
           </span>
         </div>
-      )}
-
-      {isPaused && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-300 rounded-xl">
-          <Pause className="w-4 h-4 text-yellow-600" />
-          <span className="text-sm text-yellow-700 font-medium">
-            Engine is paused. No new analysis cycles will run until you resume.
-          </span>
+        <div className={`text-5xl font-bold`}
+          style={{ color: totalPnl >= 0 ? 'var(--profit)' : 'var(--loss)' }}>
+          {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
         </div>
-      )}
-
-      {!isRunning && !startSession.isPending && (
-        <div className="card">
-          <div className="flex items-center gap-3">
-            <Info className="w-4 h-4 text-muted" />
-            <span className="text-sm text-muted">
-              Engine is stopped. Click "Start Paper Trading" to begin rules-based trading XRP. Make sure your Anthropic API key is set in the .env file.
-            </span>
-          </div>
+        <div className="flex justify-center gap-2 mt-4">
+          {(['today', '7d', '30d', 'all'] as Period[]).map(p => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                period === p
+                  ? 'bg-accent text-white'
+                  : 'text-muted hover:text-primary hover:bg-surface-hover'
+              }`}>
+              {p === 'today' ? 'Today' : p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : 'All Time'}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* Live Activity Feed — shows what the engine is doing right now */}
-      {isRunning && <LiveActivityFeed />}
-
-      {/* P&L Cards */}
-      <PnLCard
-        totalPnl={totalPnl}
-        winRate={winRate * 100}
-        totalTrades={totalTrades}
-        avgPnl={avgPnl}
-      />
-
-      {/* Stage Progress */}
-      {graduationDetails && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-muted">Stage Progress</h3>
-            <span className="text-xs text-faint">
-              {tradesCompleted} trades | {(stageWinRate * 100).toFixed(1)}% win rate
-            </span>
-          </div>
-          <div className="text-sm text-secondary">{graduationDetails}</div>
-          {graduationEligible && (
-            <div className="mt-2 px-3 py-1.5 bg-green-500/10 border border-green-300 rounded-lg text-green-700 text-sm font-medium">
-              Eligible for graduation!
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Open Positions */}
-      {portfolio?.positions && portfolio.positions.length > 0 && (
-        <div className="card">
-          <h3 className="text-sm font-medium text-muted mb-3">Open Positions</h3>
-          <div className="space-y-2">
-            {portfolio.positions.map((pos) => (
-              <div key={pos.pair} className="flex items-center justify-between card-inner">
-                <div>
-                  <span className="font-semibold text-primary">{pos.pair}</span>
-                  <span className="text-sm text-muted ml-3">Entry: ${pos.entry_price.toFixed(6)}</span>
-                  <span className="text-sm text-muted ml-3">Current: ${pos.current_price.toFixed(6)}</span>
-                </div>
-                <div className="text-right">
-                  <span className={`font-bold ${pos.unrealized_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)}
-                  </span>
-                  <span className={`text-sm ml-2 ${pos.unrealized_pnl_pct >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    ({pos.unrealized_pnl_pct >= 0 ? '+' : ''}{pos.unrealized_pnl_pct.toFixed(1)}%)
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Equity Curve */}
-      <EquityCurve data={equityData?.points ?? []} />
-
-      {/* Recent Trades */}
+      {/* Trade List */}
       <div>
-        <h3 className="text-lg font-semibold text-primary mb-3">Recent Trades</h3>
-        <TradeTable trades={tradesData?.trades ?? []} />
+        <h3 className="text-sm font-medium text-muted mb-3">Trades</h3>
+        {displayTrades.length === 0 ? (
+          <div className="card text-center text-muted py-8">
+            No trades yet. {!isRunning && 'Click Start to begin.'}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {displayTrades.map((trade, i) => {
+              const isOpen = trade.status === 'open'
+              const pnl = trade.pnl || 0
+              const isWin = pnl > 0
+
+              return (
+                <div key={trade.id || i} className="card flex items-center justify-between py-3 px-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${
+                      isOpen ? 'bg-blue-500' : isWin ? 'bg-green-500' : 'bg-red-500'
+                    }`} />
+                    <div>
+                      <span className="text-sm font-medium text-primary">{trade.pair}</span>
+                      <span className="text-xs text-muted ml-2">
+                        {formatTime(trade.closed_at || trade.opened_at)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {isOpen ? (
+                      <span className="text-sm text-blue-500 font-medium">Open</span>
+                    ) : (
+                      <span className={`text-sm font-bold`}
+                        style={{ color: isWin ? 'var(--profit)' : 'var(--loss)' }}>
+                        {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

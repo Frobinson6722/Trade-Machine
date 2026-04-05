@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import PnLCard from '../components/PnLCard'
 import EquityCurve from '../components/EquityCurve'
 import TradeTable from '../components/TradeTable'
 import { useSessionStatus, useTrades, useEquityCurve, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
-import { Play, Square, Pause, SkipForward } from 'lucide-react'
+import { Play, Square, Pause, SkipForward, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
+
+type Toast = { message: string; type: 'success' | 'error' | 'info' }
 
 export default function Dashboard() {
   const { data: status } = useSessionStatus()
@@ -12,6 +15,43 @@ export default function Dashboard() {
   const stopSession = useStopSession()
   const pauseSession = usePauseSession()
   const resumeSession = useResumeSession()
+  const [toast, setToast] = useState<Toast | null>(null)
+
+  const showToast = (message: string, type: Toast['type'] = 'info') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 5000)
+  }
+
+  const handleStart = () => {
+    startSession.mutate(
+      { mode: 'paper' },
+      {
+        onSuccess: () => showToast('Paper trading session started! The engine will analyze markets every 15 minutes.', 'success'),
+        onError: (err) => showToast(`Failed to start: ${err.message}`, 'error'),
+      }
+    )
+  }
+
+  const handleStop = () => {
+    stopSession.mutate(undefined, {
+      onSuccess: () => showToast('Trading session stopped.', 'info'),
+      onError: (err) => showToast(`Failed to stop: ${err.message}`, 'error'),
+    })
+  }
+
+  const handlePause = () => {
+    pauseSession.mutate(undefined, {
+      onSuccess: () => showToast('Trading session paused.', 'info'),
+      onError: (err) => showToast(`Failed to pause: ${err.message}`, 'error'),
+    })
+  }
+
+  const handleResume = () => {
+    resumeSession.mutate(undefined, {
+      onSuccess: () => showToast('Trading session resumed!', 'success'),
+      onError: (err) => showToast(`Failed to resume: ${err.message}`, 'error'),
+    })
+  }
 
   const stats = status?.stats ?? { total: 0, wins: 0, losses: 0, win_rate: 0, total_pnl: 0, avg_pnl: 0 }
   const isRunning = status?.running ?? false
@@ -19,6 +59,20 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border max-w-md animate-in ${
+          toast.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
+          toast.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+          'bg-blue-500/10 border-blue-500/30 text-blue-400'
+        }`}>
+          {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 shrink-0" />}
+          {toast.type === 'error' && <AlertCircle className="w-5 h-5 shrink-0" />}
+          {toast.type === 'info' && <Info className="w-5 h-5 shrink-0" />}
+          <span className="text-sm">{toast.message}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -32,40 +86,90 @@ export default function Dashboard() {
           {!isRunning ? (
             <button
               className="btn-primary flex items-center gap-2"
-              onClick={() => startSession.mutate({ mode: 'paper' })}
+              onClick={handleStart}
               disabled={startSession.isPending}
             >
-              <Play className="w-4 h-4" />
-              Start Paper Trading
+              {startSession.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+              {startSession.isPending ? 'Starting...' : 'Start Paper Trading'}
             </button>
           ) : isPaused ? (
             <button
               className="btn-primary flex items-center gap-2"
-              onClick={() => resumeSession.mutate()}
+              onClick={handleResume}
+              disabled={resumeSession.isPending}
             >
-              <SkipForward className="w-4 h-4" />
-              Resume
+              {resumeSession.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <SkipForward className="w-4 h-4" />
+              )}
+              {resumeSession.isPending ? 'Resuming...' : 'Resume'}
             </button>
           ) : (
             <button
               className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2"
-              onClick={() => pauseSession.mutate()}
+              onClick={handlePause}
+              disabled={pauseSession.isPending}
             >
-              <Pause className="w-4 h-4" />
-              Pause
+              {pauseSession.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Pause className="w-4 h-4" />
+              )}
+              {pauseSession.isPending ? 'Pausing...' : 'Pause'}
             </button>
           )}
           {isRunning && (
             <button
               className="btn-danger flex items-center gap-2"
-              onClick={() => stopSession.mutate()}
+              onClick={handleStop}
+              disabled={stopSession.isPending}
             >
-              <Square className="w-4 h-4" />
-              Stop
+              {stopSession.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Square className="w-4 h-4" />
+              )}
+              {stopSession.isPending ? 'Stopping...' : 'Stop'}
             </button>
           )}
         </div>
       </div>
+
+      {/* System status banner */}
+      {isRunning && !isPaused && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <div className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+          </div>
+          <span className="text-sm text-green-400">
+            Engine is running — analyzing markets every {status?.stage?.trade_size_usd ? `with $${status.stage.trade_size_usd} trades` : 'in paper mode'}. Next cycle will fetch live data and run all 12 agents.
+          </span>
+        </div>
+      )}
+
+      {isPaused && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <Pause className="w-4 h-4 text-yellow-400" />
+          <span className="text-sm text-yellow-400">
+            Engine is paused. No new analysis cycles will run until you resume.
+          </span>
+        </div>
+      )}
+
+      {!isRunning && !startSession.isPending && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg">
+          <Info className="w-4 h-4 text-gray-400" />
+          <span className="text-sm text-gray-400">
+            Engine is stopped. Click "Start Paper Trading" to begin. You'll need an OpenAI API key configured in the .env file for the AI agents to work.
+          </span>
+        </div>
+      )}
 
       {/* P&L Cards */}
       <PnLCard

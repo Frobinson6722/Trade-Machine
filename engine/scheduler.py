@@ -150,8 +150,14 @@ class TradingScheduler:
         cycle_id = str(uuid.uuid4())[:8]
         logger.info(f"Starting cycle {cycle_id} for {pair}")
 
+        # Broadcast cycle start
+        if self.on_agent_log:
+            await self.on_agent_log("system", f"Starting analysis cycle {cycle_id} for {pair}")
+
         try:
             # 1. Fetch data
+            if self.on_agent_log:
+                await self.on_agent_log("system", f"Fetching market data for {pair}...")
             market_data_raw = await self.data_provider.get_ohlcv(pair)
             indicators = compute_indicators(market_data_raw)
             market_data = {"candles": market_data_raw[-20:], "indicators": indicators}
@@ -235,10 +241,15 @@ class TradingScheduler:
             # 5. Check existing position stops
             await self._check_stops(pair)
 
+            if self.on_agent_log:
+                await self.on_agent_log("system", f"Cycle {cycle_id} for {pair} completed successfully")
             logger.info(f"Cycle {cycle_id} for {pair} completed")
 
         except Exception as e:
+            error_msg = str(e)[:200]
             logger.error(f"Cycle {cycle_id} for {pair} failed: {e}", exc_info=True)
+            if self.on_agent_log:
+                await self.on_agent_log("system", f"Cycle {cycle_id} for {pair} failed: {error_msg}")
 
     async def _check_stops(self, pair: str) -> None:
         """Check if any stops have been triggered for a pair."""

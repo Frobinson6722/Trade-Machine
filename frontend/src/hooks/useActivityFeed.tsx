@@ -40,7 +40,6 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [counts, setCounts] = useState<ActivityCounts>({ trades: 0, agents: 0, learning: 0 })
   const { lastMessage } = useWebSocket()
-  const [initialized, setInitialized] = useState(false)
 
   const addItem = useCallback((phase: Phase, icon: FeedItem['icon'], message: string, detail?: string) => {
     globalId++
@@ -86,33 +85,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     }
   }, [lastMessage, addItem])
 
-  // Simulated cycle walkthrough on first engine start
-  useEffect(() => {
-    if (initialized) return
-
-    const steps: { delay: number; phase: Phase; icon: FeedItem['icon']; msg: string; detail: string }[] = [
-      { delay: 500, phase: 'data', icon: 'data', msg: 'Engine started — beginning first analysis cycle', detail: 'Analyzing BTC-USD and ETH-USD with 12 Claude AI agents' },
-      { delay: 2000, phase: 'data', icon: 'data', msg: 'Fetching live BTC-USD price from CoinGecko...', detail: 'Pulling OHLCV candles, ticker, and 24h volume' },
-      { delay: 5000, phase: 'data', icon: 'data', msg: 'Fetching ETH-USD price data...', detail: 'Pulling OHLCV candles, ticker, and 24h volume' },
-      { delay: 8000, phase: 'data', icon: 'data', msg: 'Pulling crypto news, sentiment, and on-chain data...', detail: 'CryptoPanic news, Fear & Greed index, DeFiLlama TVL' },
-      { delay: 12000, phase: 'analysis', icon: 'analyzing', msg: 'Market Analyst is reading the charts...', detail: 'RSI, MACD, Bollinger Bands, support/resistance levels' },
-      { delay: 18000, phase: 'analysis', icon: 'analyzing', msg: 'News Analyst is scanning headlines...', detail: 'Regulatory news, ETF flows, protocol updates' },
-      { delay: 24000, phase: 'analysis', icon: 'analyzing', msg: 'Sentiment Analyst is checking market mood...', detail: 'Fear & Greed index, Reddit/X activity, funding rates' },
-      { delay: 30000, phase: 'analysis', icon: 'analyzing', msg: 'Fundamentals Analyst is reviewing on-chain data...', detail: 'TVL trends, active addresses, whale movements' },
-      { delay: 38000, phase: 'research', icon: 'bull', msg: 'Bull Researcher is building the case to BUY...', detail: 'Aggregating bullish signals from all 4 analysts' },
-      { delay: 46000, phase: 'research', icon: 'bear', msg: 'Bear Researcher is arguing for caution...', detail: 'Identifying risks and bearish signals' },
-      { delay: 54000, phase: 'research', icon: 'deciding', msg: 'Research Manager is weighing both sides...', detail: 'Deciding who made the stronger argument' },
-      { delay: 62000, phase: 'action', icon: 'thinking', msg: 'Trader is designing the trade...', detail: 'Setting entry, stop-loss, take-profit, and position size' },
-      { delay: 70000, phase: 'action', icon: 'risk', msg: 'Risk Debators are arguing about the risk level...', detail: 'Aggressive vs Conservative vs Neutral perspectives' },
-      { delay: 80000, phase: 'action', icon: 'deciding', msg: 'Portfolio Manager is making the final call...', detail: 'Approve, modify, or reject the proposed trade' },
-    ]
-
-    setInitialized(true)
-    const timeouts = steps.map(step =>
-      setTimeout(() => addItem(step.phase, step.icon, step.msg, step.detail), step.delay)
-    )
-    return () => timeouts.forEach(clearTimeout)
-  }, [initialized, addItem])
+  // No more simulated walkthrough — all activity comes from real WebSocket events
 
   return (
     <ActivityContext.Provider value={{ feed, counts, clearCount }}>
@@ -123,6 +96,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
 
 function classifyAgent(name: string): { phase: Phase; icon: FeedItem['icon'] } {
   const n = name.toLowerCase()
+  if (n === 'system') return { phase: 'data', icon: 'data' }
   if (n.includes('market') || n.includes('news') || n.includes('sentiment') || n.includes('fundamental'))
     return { phase: 'analysis', icon: 'analyzing' }
   if (n.includes('bull')) return { phase: 'research', icon: 'bull' }
@@ -137,6 +111,7 @@ function classifyAgent(name: string): { phase: Phase; icon: FeedItem['icon'] } {
 
 function summarizeAgentOutput(agentName: string, content: string): string {
   const name = agentName.toLowerCase()
+  if (name === 'system') return content  // System messages are already plain English
   if (name.includes('market analyst')) {
     if (content.toLowerCase().includes('bullish')) return 'Market Analyst sees bullish technical signals'
     if (content.toLowerCase().includes('bearish')) return 'Market Analyst sees bearish technical signals'

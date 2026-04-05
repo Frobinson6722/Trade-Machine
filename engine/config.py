@@ -15,7 +15,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "trading_pairs": os.getenv("DEFAULT_TRADING_PAIRS", "XRP-USD,DOGE-USD").split(","),
 
     # Cycle settings
-    "cycle_interval_seconds": int(os.getenv("CYCLE_INTERVAL_SECONDS", "300")),
+    "cycle_interval_seconds": int(os.getenv("CYCLE_INTERVAL_SECONDS", "900")),
     "max_debate_rounds": 2,
     "max_risk_discuss_rounds": 2,
     "max_recur_limit": 50,

@@ -9,7 +9,7 @@ import { useTheme } from '../hooks/useTheme'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, countKey: null },
-  { path: '/agents', label: 'Agents', icon: Brain, countKey: 'agents' as const },
+  { path: '/agents', label: 'Decisions', icon: Brain, countKey: 'trades' as const },
   { path: '/more', label: 'More', icon: MoreHorizontal, countKey: null },
 ]
 

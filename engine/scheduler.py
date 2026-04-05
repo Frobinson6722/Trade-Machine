@@ -45,6 +45,7 @@ class TradingScheduler:
         self.running = False
         self.paused = False
         self._task: asyncio.Task | None = None
+        self._last_prices: dict[str, float] = {}  # Track last price per pair to skip unchanged cycles
 
         # Memory
         self.memory = MemoryManager()
@@ -156,6 +157,22 @@ class TradingScheduler:
             await self.on_agent_log("system", f"Starting analysis cycle {cycle_id} for {pair}")
 
         try:
+            # 0. Check if price moved enough to justify a full analysis cycle
+            ticker_check = await self.data_provider.get_ticker(pair)
+            check_price = ticker_check.get("price", 0)
+            last_price = self._last_prices.get(pair, 0)
+            if last_price > 0 and check_price > 0:
+                price_change_pct = abs((check_price - last_price) / last_price) * 100
+                if price_change_pct < 0.3:  # Skip if less than 0.3% move
+                    if self.on_agent_log:
+                        await self.on_agent_log("system", f"Skipping {pair} — price moved only {price_change_pct:.2f}% (need >0.3%). Saving API costs.")
+                    logger.info(f"Skipping cycle for {pair}: price change {price_change_pct:.2f}% < 0.3%")
+                    # Still check open positions even when skipping analysis
+                    if check_price > 0:
+                        await self._check_and_close_position(pair, check_price, cycle_id)
+                    return
+            self._last_prices[pair] = check_price
+
             # 1. Fetch data
             if self.on_agent_log:
                 await self.on_agent_log("system", f"Fetching market data for {pair}...")

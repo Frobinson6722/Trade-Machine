@@ -10,7 +10,7 @@ type Toast = { message: string; type: 'success' | 'error' | 'info' }
 
 export default function Dashboard() {
   const { data: status } = useSessionStatus()
-  const { data: tradesData } = useTrades({ limit: 5 })
+  const { data: tradesData } = useTrades({ limit: 20 })
   const { data: equityData } = useEquityCurve()
   const { data: portfolio } = usePortfolio()
   const startSession = useStartSession()

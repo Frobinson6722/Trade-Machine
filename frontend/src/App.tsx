@@ -1,12 +1,8 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
-import TradesPage from './pages/TradesPage'
 import AgentsPage from './pages/AgentsPage'
-import LearningPage from './pages/LearningPage'
-import SettingsPage from './pages/SettingsPage'
-import ReleaseNotesPage from './pages/ReleaseNotesPage'
-import ApiCostsPage from './pages/ApiCostsPage'
+import MorePage from './pages/MorePage'
 import { ActivityProvider } from './hooks/useActivityFeed'
 
 export default function App() {
@@ -15,12 +11,8 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/trades" element={<TradesPage />} />
           <Route path="/agents" element={<AgentsPage />} />
-          <Route path="/learning" element={<LearningPage />} />
-          <Route path="/api-costs" element={<ApiCostsPage />} />
-          <Route path="/release-notes" element={<ReleaseNotesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/more" element={<MorePage />} />
         </Routes>
       </Layout>
     </ActivityProvider>

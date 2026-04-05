@@ -1,6 +1,6 @@
 import { ReactNode, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, ArrowLeftRight, Brain, GraduationCap, Settings, Zap, Sun, Moon, FileText, DollarSign } from 'lucide-react'
+import { LayoutDashboard, Brain, MoreHorizontal, Zap, Sun, Moon } from 'lucide-react'
 import StatusBadge from './StatusBadge'
 import HelpModal from './HelpModal'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -9,12 +9,8 @@ import { useTheme } from '../hooks/useTheme'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, countKey: null },
-  { path: '/trades', label: 'Trades', icon: ArrowLeftRight, countKey: 'trades' as const },
   { path: '/agents', label: 'Agents', icon: Brain, countKey: 'agents' as const },
-  { path: '/learning', label: 'Learning', icon: GraduationCap, countKey: 'learning' as const },
-  { path: '/api-costs', label: 'API Costs', icon: DollarSign, countKey: null },
-  { path: '/release-notes', label: 'Release Notes', icon: FileText, countKey: null },
-  { path: '/settings', label: 'Settings', icon: Settings, countKey: null },
+  { path: '/more', label: 'More', icon: MoreHorizontal, countKey: null },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {

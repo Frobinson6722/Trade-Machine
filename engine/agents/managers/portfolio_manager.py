@@ -38,17 +38,7 @@ async def run_portfolio_manager(
     response = await invoke_agent(
         llm,
         prompt,
-        """Make your final decision. Respond with JSON:
-{
-    "approved": true/false,
-    "action": "BUY"|"SELL"|"HOLD",
-    "pair": "...",
-    "size_pct": ...,
-    "stop_loss": ...,
-    "take_profit": ...,
-    "modifications": "description of any changes",
-    "reasoning": "your reasoning"
-}""",
+        f"Approve or reject the trade. Output ONLY valid JSON, nothing else. stop_loss and take_profit must be single numbers.",
         temperature=0.2,
     )
 

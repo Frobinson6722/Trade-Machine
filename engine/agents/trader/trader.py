@@ -38,18 +38,7 @@ async def run_trader(
     response = await invoke_agent(
         llm,
         prompt,
-        """Produce your trade proposal. Respond with JSON:
-{
-    "action": "BUY"|"SELL"|"HOLD",
-    "pair": "...",
-    "size_pct": ...,
-    "entry_type": "market"|"limit",
-    "limit_price": null,
-    "stop_loss": ...,
-    "take_profit": ...,
-    "confidence": 0.0-1.0,
-    "reasoning": "your reasoning"
-}""",
+        f"Make your trade decision now. Output ONLY valid JSON, nothing else. stop_loss and take_profit must be single numbers, NOT lists.",
         temperature=0.3,
     )
 

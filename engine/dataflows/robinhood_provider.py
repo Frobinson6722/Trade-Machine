@@ -5,12 +5,16 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import robin_stocks.robinhood as rh
-
 from engine.dataflows.interface import DataProvider
 from engine.dataflows.config import PAIR_TO_ROBINHOOD
 
 logger = logging.getLogger(__name__)
+
+
+def _get_rh():
+    """Lazy import robin_stocks to avoid import errors when not configured."""
+    import robin_stocks.robinhood as rh
+    return rh
 
 
 class RobinhoodProvider(DataProvider):
@@ -26,6 +30,7 @@ class RobinhoodProvider(DataProvider):
         """Log in to Robinhood if not already authenticated."""
         if self._logged_in:
             return
+        rh = _get_rh()
         try:
             rh.login(
                 self.username,
@@ -48,9 +53,9 @@ class RobinhoodProvider(DataProvider):
     ) -> list[dict[str, Any]]:
         """Fetch historical crypto price data from Robinhood."""
         self._ensure_login()
+        rh = _get_rh()
         symbol = self._get_symbol(pair)
 
-        # Map interval to Robinhood span/interval
         interval_map = {
             "5min": ("day", "5minute"),
             "10min": ("week", "10minute"),
@@ -84,6 +89,7 @@ class RobinhoodProvider(DataProvider):
     async def get_ticker(self, pair: str) -> dict[str, Any]:
         """Fetch current crypto ticker from Robinhood."""
         self._ensure_login()
+        rh = _get_rh()
         symbol = self._get_symbol(pair)
 
         try:
@@ -106,6 +112,7 @@ class RobinhoodProvider(DataProvider):
     async def get_account_balance(self) -> dict[str, Any]:
         """Fetch Robinhood crypto account balances."""
         self._ensure_login()
+        rh = _get_rh()
         try:
             profile = rh.profiles.load_portfolio_profile()
             crypto_positions = rh.crypto.get_crypto_positions()
@@ -133,5 +140,6 @@ class RobinhoodProvider(DataProvider):
     def logout(self) -> None:
         """Log out from Robinhood."""
         if self._logged_in:
+            rh = _get_rh()
             rh.logout()
             self._logged_in = False

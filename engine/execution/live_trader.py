@@ -7,9 +7,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-import robin_stocks.robinhood as rh
-
 from engine.dataflows.config import PAIR_TO_ROBINHOOD
+
+rh = None  # Lazy loaded
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,9 @@ class LiveTrader:
     def _ensure_login(self) -> None:
         if self._logged_in:
             return
+        global rh
+        import robin_stocks.robinhood as _rh
+        rh = _rh
         rh.login(
             self.username,
             self.password,

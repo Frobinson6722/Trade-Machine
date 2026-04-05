@@ -53,15 +53,30 @@ export default function Dashboard() {
     })
   }
 
-  const stats = status?.stats ?? { total: 0, wins: 0, losses: 0, win_rate: 0, total_pnl: 0, avg_pnl: 0 }
-  const isRunning = status?.running ?? false
-  const isPaused = status?.paused ?? false
+  // Safely extract stats with defaults
+  const rawStats = (status as any)?.stats ?? {}
+  const totalPnl = Number(rawStats.total_pnl) || 0
+  const winRate = Number(rawStats.win_rate) || 0
+  const totalTrades = Number(rawStats.total) || Number(rawStats.total_trades) || 0
+  const avgPnl = Number(rawStats.avg_pnl) || 0
+
+  const isRunning = Boolean((status as any)?.running)
+  const isPaused = Boolean((status as any)?.paused)
+  const currentStage = (status as any)?.stage?.current_stage ?? (status as any)?.stage ?? 'paper'
+  const mode = (status as any)?.mode ?? 'paper'
+
+  // Safely extract stage info
+  const stage = (status as any)?.stage ?? {}
+  const tradesCompleted = Number(stage.trades_completed) || 0
+  const stageWinRate = Number(stage.win_rate) || 0
+  const graduationDetails = stage.graduation_check?.details ?? ''
+  const graduationEligible = Boolean(stage.graduation_check?.eligible)
 
   return (
     <div className="space-y-6">
       {/* Toast notification */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border max-w-md animate-in ${
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border max-w-md ${
           toast.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
           toast.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
           'bg-blue-500/10 border-blue-500/30 text-blue-400'
@@ -78,7 +93,7 @@ export default function Dashboard() {
         <div>
           <h2 className="text-2xl font-bold">Dashboard</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Stage: {status?.stage?.current_stage ?? 'paper'} | Mode: {status?.mode ?? 'paper'}
+            Stage: {typeof currentStage === 'string' ? currentStage : 'paper'} | Mode: {mode}
           </p>
         </div>
 
@@ -148,7 +163,7 @@ export default function Dashboard() {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
           </div>
           <span className="text-sm text-green-400">
-            Engine is running — analyzing markets every {status?.stage?.trade_size_usd ? `with $${status.stage.trade_size_usd} trades` : 'in paper mode'}. Next cycle will fetch live data and run all 12 agents.
+            Engine is running — analyzing BTC & ETH with Claude AI agents. Cycles run every 15 minutes.
           </span>
         </div>
       )}
@@ -166,30 +181,30 @@ export default function Dashboard() {
         <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg">
           <Info className="w-4 h-4 text-gray-400" />
           <span className="text-sm text-gray-400">
-            Engine is stopped. Click "Start Paper Trading" to begin. You'll need an OpenAI API key configured in the .env file for the AI agents to work.
+            Engine is stopped. Click "Start Paper Trading" to begin. Make sure your Anthropic API key is set in the .env file.
           </span>
         </div>
       )}
 
       {/* P&L Cards */}
       <PnLCard
-        totalPnl={stats.total_pnl}
-        winRate={stats.win_rate * 100}
-        totalTrades={stats.total}
-        avgPnl={stats.avg_pnl}
+        totalPnl={totalPnl}
+        winRate={winRate * 100}
+        totalTrades={totalTrades}
+        avgPnl={avgPnl}
       />
 
       {/* Stage Progress */}
-      {status?.stage && (
+      {graduationDetails && (
         <div className="card">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-400">Stage Progress</h3>
             <span className="text-xs text-gray-500">
-              {status.stage.trades_completed} trades | {(status.stage.win_rate * 100).toFixed(1)}% win rate
+              {tradesCompleted} trades | {(stageWinRate * 100).toFixed(1)}% win rate
             </span>
           </div>
-          <div className="text-sm text-gray-300">{status.stage.graduation_check?.details}</div>
-          {status.stage.graduation_check?.eligible && (
+          <div className="text-sm text-gray-300">{graduationDetails}</div>
+          {graduationEligible && (
             <div className="mt-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded text-green-400 text-sm">
               Eligible for graduation!
             </div>

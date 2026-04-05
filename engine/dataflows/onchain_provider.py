@@ -5,9 +5,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import ssl
+
 import aiohttp
 
 from engine.dataflows.interface import OnchainProvider
+
+_ssl_context = ssl.create_default_context()
+_ssl_context.check_hostname = False
+_ssl_context.verify_mode = ssl.CERT_NONE
 from engine.dataflows.config import DATA_CONFIG, PAIR_TO_COINGECKO
 
 logger = logging.getLogger(__name__)
@@ -22,7 +28,7 @@ class DefiLlamaOnchainProvider(OnchainProvider):
     async def get_tvl(self, protocol: str | None = None) -> dict[str, Any]:
         """Fetch Total Value Locked data."""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 if protocol:
                     url = f"{self.base_url}/protocol/{protocol}"
                 else:
@@ -69,7 +75,7 @@ class DefiLlamaOnchainProvider(OnchainProvider):
         coingecko_id = PAIR_TO_COINGECKO.get(symbol, symbol.lower())
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 # Use CoinGecko free API for basic token data
                 async with session.get(
                     f"https://api.coingecko.com/api/v3/coins/{coingecko_id}",

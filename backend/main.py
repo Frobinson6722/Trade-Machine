@@ -1,5 +1,15 @@
 """FastAPI application — main entry point for the Trade Machine backend."""
 
+# Load .env file before anything else
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+# Fix SSL certs on macOS
+import ssl
+import certifi
+ssl._create_default_https_context = ssl._create_unverified_context
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI

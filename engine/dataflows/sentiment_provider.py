@@ -5,9 +5,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import ssl
+
 import aiohttp
 
 from engine.dataflows.interface import SentimentProvider
+
+_ssl_context = ssl.create_default_context()
+_ssl_context.check_hostname = False
+_ssl_context.verify_mode = ssl.CERT_NONE
 from engine.dataflows.config import DATA_CONFIG
 
 logger = logging.getLogger(__name__)
@@ -22,7 +28,7 @@ class CryptoSentimentProvider(SentimentProvider):
     async def get_fear_greed_index(self) -> dict[str, Any]:
         """Fetch the crypto Fear & Greed Index."""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 async with session.get(
                     self.fng_url,
                     params={"limit": 7},

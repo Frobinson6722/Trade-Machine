@@ -5,9 +5,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import ssl
+
 import aiohttp
 
 from engine.dataflows.interface import NewsProvider
+
+_ssl_context = ssl.create_default_context()
+_ssl_context.check_hostname = False
+_ssl_context.verify_mode = ssl.CERT_NONE
 from engine.dataflows.config import DATA_CONFIG
 
 logger = logging.getLogger(__name__)
@@ -32,7 +38,7 @@ class CryptoPanicNewsProvider(NewsProvider):
             params["currencies"] = currency
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 async with session.get(
                     f"{self.base_url}/posts/",
                     params=params,

@@ -6,9 +6,16 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import ssl
+
 import aiohttp
 
 from engine.dataflows.interface import DataProvider
+
+# Disable SSL verification for macOS compatibility
+_ssl_context = ssl.create_default_context()
+_ssl_context.check_hostname = False
+_ssl_context.verify_mode = ssl.CERT_NONE
 from engine.dataflows.config import PAIR_TO_COINGECKO
 
 logger = logging.getLogger(__name__)
@@ -48,7 +55,7 @@ class FreeMarketProvider(DataProvider):
         days = "1" if interval in ("hour", "1h", "5min", "10min") else "30"
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 async with session.get(
                     f"{self.base_url}/coins/{coin_id}/market_chart",
                     params={"vs_currency": "usd", "days": days},
@@ -91,7 +98,7 @@ class FreeMarketProvider(DataProvider):
         coin_id = self._get_coin_id(pair)
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 async with session.get(
                     f"{self.base_url}/simple/price",
                     params={

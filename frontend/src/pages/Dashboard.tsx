@@ -2,6 +2,7 @@ import { useState } from 'react'
 import PnLCard from '../components/PnLCard'
 import EquityCurve from '../components/EquityCurve'
 import TradeTable from '../components/TradeTable'
+import LiveActivityFeed from '../components/LiveActivityFeed'
 import { useSessionStatus, useTrades, useEquityCurve, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
 import { Play, Square, Pause, SkipForward, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 
@@ -185,6 +186,9 @@ export default function Dashboard() {
           </span>
         </div>
       )}
+
+      {/* Live Activity Feed — shows what the engine is doing right now */}
+      {isRunning && <LiveActivityFeed />}
 
       {/* P&L Cards */}
       <PnLCard

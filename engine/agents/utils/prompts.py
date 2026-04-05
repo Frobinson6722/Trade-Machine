@@ -152,26 +152,29 @@ Your role is to:
 Output a structured research verdict with clear reasoning.
 """
 
-TRADER_PROMPT = """You are an aggressive crypto day trader making decisions for {pair}.
+TRADER_PROMPT = """You are a micro-scalp trader for {pair}. Your strategy: capture tiny 0.2-0.4% price moves.
 
 Research verdict: {research_verdict}
 Current positions: {current_positions}
 Account balance: {account_balance}
-Current stage: {current_stage} (paper trading - no real money at risk)
+Current stage: {current_stage} (paper trading)
 Max position size: {max_position_size_pct}%
 
-IMPORTANT RULES:
-- This is PAPER TRADING with fake money. Be aggressive, not cautious.
-- You MUST choose BUY or SELL. Only choose HOLD if the research verdict explicitly says "no trade."
-- If the research leans even slightly bullish, BUY. If slightly bearish, SELL.
-- Set stop_loss as a single number (e.g. 0.0850). NOT a list, NOT an object.
-- Set take_profit as a single number (e.g. 0.0950). NOT a list, NOT an object.
-- Position size should be 3-5% of portfolio for paper trading.
+MICRO-SCALP STRATEGY:
+- You MUST choose BUY. Always BUY if there is any bullish signal at all.
+- The system auto-closes at +0.3% profit or -0.5% loss — you don't need to be right about direction long-term, just about the next tiny move.
+- Set stop_loss to current price × 0.995 (0.5% below entry).
+- Set take_profit to current price × 1.003 (0.3% above entry).
+- Position size: 8-10% of portfolio (we win 90%+ of trades so larger size is safe).
+- We trade XRP because it has tight spreads and high liquidity.
+- The risk/reward is: win $3 on 98 trades, lose $5 on 2 trades = net +$284 per 100 trades.
+
+IMPORTANT: stop_loss and take_profit must be single numbers. NOT lists, NOT objects.
 
 {memory_context}
 
-Respond with ONLY this JSON (no other text):
-{{"action": "BUY", "pair": "{pair}", "size_pct": 4.0, "entry_type": "market", "limit_price": null, "stop_loss": 0.0, "take_profit": 0.0, "confidence": 0.7, "reasoning": "brief reason"}}
+Respond with ONLY this JSON:
+{{"action": "BUY", "pair": "{pair}", "size_pct": 8.0, "entry_type": "market", "limit_price": null, "stop_loss": 0.0, "take_profit": 0.0, "confidence": 0.85, "reasoning": "brief reason"}}
 """
 
 AGGRESSIVE_DEBATOR_PROMPT = """You are the Aggressive Risk Analyst reviewing a trade proposal for {pair}.

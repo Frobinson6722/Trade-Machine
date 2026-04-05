@@ -4,27 +4,27 @@ import os
 from typing import Any
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    # LLM settings — Claude only
+    # LLM settings — Claude only, ALL Haiku to minimize cost
     "llm_provider": "anthropic",
-    "llm_model": os.getenv("LLM_MODEL", "claude-sonnet-4-20250514"),
-    "deep_think_model": os.getenv("DEEP_THINK_MODEL", "claude-sonnet-4-20250514"),
+    "llm_model": os.getenv("LLM_MODEL", "claude-haiku-4-5-20251001"),
+    "deep_think_model": os.getenv("DEEP_THINK_MODEL", "claude-haiku-4-5-20251001"),
     "quick_think_model": os.getenv("QUICK_THINK_MODEL", "claude-haiku-4-5-20251001"),
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY", ""),
 
-    # Trading pairs
-    "trading_pairs": os.getenv("DEFAULT_TRADING_PAIRS", "XRP-USD,DOGE-USD").split(","),
+    # Single coin — XRP only (most liquid altcoin, tight spreads)
+    "trading_pairs": os.getenv("DEFAULT_TRADING_PAIRS", "XRP-USD").split(","),
 
-    # Cycle settings
+    # Cycle every 15 minutes
     "cycle_interval_seconds": int(os.getenv("CYCLE_INTERVAL_SECONDS", "900")),
     "max_debate_rounds": 2,
     "max_risk_discuss_rounds": 2,
     "max_recur_limit": 50,
 
-    # Risk parameters
-    "max_position_size_pct": 5.0,
-    "max_portfolio_allocation_pct": 25.0,
-    "default_stop_loss_pct": 3.0,
-    "default_take_profit_pct": 6.0,
+    # Risk parameters — micro-scalp: tiny wins, tight stops
+    "max_position_size_pct": 10.0,
+    "max_portfolio_allocation_pct": 30.0,
+    "default_stop_loss_pct": 0.5,       # Tight 0.5% stop — cut losses fast
+    "default_take_profit_pct": 0.3,     # Take 0.3% profit — win often
 
     # Stage escalation thresholds
     "stages": {

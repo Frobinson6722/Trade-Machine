@@ -163,9 +163,9 @@ class TradingScheduler:
             last_price = self._last_prices.get(pair, 0)
             if last_price > 0 and check_price > 0:
                 price_change_pct = abs((check_price - last_price) / last_price) * 100
-                if price_change_pct < 0.3:  # Skip if less than 0.3% move
+                if price_change_pct < 0.1:  # Skip if less than 0.1% move (micro-scalp needs tiny moves)
                     if self.on_agent_log:
-                        await self.on_agent_log("system", f"Skipping {pair} — price moved only {price_change_pct:.2f}% (need >0.3%). Saving API costs.")
+                        await self.on_agent_log("system", f"Skipping {pair} — price flat ({price_change_pct:.2f}%). Waiting for movement.")
                     logger.info(f"Skipping cycle for {pair}: price change {price_change_pct:.2f}% < 0.3%")
                     # Still check open positions even when skipping analysis
                     if check_price > 0:
@@ -309,22 +309,23 @@ class TradingScheduler:
         should_close = False
         trigger = "manual"
 
-        # Check stop-loss
-        if sl and current_price <= sl:
-            should_close = True
-            trigger = "stop_loss"
-        # Check take-profit
-        elif tp and current_price >= tp:
+        # Micro-scalp rules: take tiny profits fast, cut losses faster
+        # Check take-profit FIRST (we want to close winners quickly)
+        if tp and current_price >= tp:
             should_close = True
             trigger = "take_profit"
-        # Auto-close at -5% loss (safety net)
-        elif pnl_pct <= -5:
-            should_close = True
-            trigger = "auto_stop_loss"
-        # Auto-close at +8% profit (lock in gains)
-        elif pnl_pct >= 8:
+        # Auto-close at +0.3% profit (micro-scalp win)
+        elif pnl_pct >= 0.3:
             should_close = True
             trigger = "auto_take_profit"
+        # Check stop-loss
+        elif sl and current_price <= sl:
+            should_close = True
+            trigger = "stop_loss"
+        # Auto-close at -0.5% loss (tight stop)
+        elif pnl_pct <= -0.5:
+            should_close = True
+            trigger = "auto_stop_loss"
 
         if should_close:
             old_cycle = pos.get("cycle_id", cycle_id)

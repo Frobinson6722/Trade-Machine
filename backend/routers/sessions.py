@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth import verify_token
 from backend.database import get_db
 from backend.models import TradingSession
 from backend.schemas import SessionStartRequest, SessionResponse
@@ -17,7 +16,7 @@ router = APIRouter()
 async def start_session(
     req: SessionStartRequest,
     request: Request,
-    _token: str = Depends(verify_token),
+
     db: AsyncSession = Depends(get_db),
 ):
     """Start a new trading session."""
@@ -57,7 +56,7 @@ async def start_session(
 @router.post("/stop")
 async def stop_session(
     request: Request,
-    _token: str = Depends(verify_token),
+
 ):
     """Stop the running trading session."""
     bridge = request.app.state.engine_bridge
@@ -71,7 +70,7 @@ async def stop_session(
 @router.post("/pause")
 async def pause_session(
     request: Request,
-    _token: str = Depends(verify_token),
+
 ):
     """Pause the running trading session."""
     bridge = request.app.state.engine_bridge
@@ -85,7 +84,7 @@ async def pause_session(
 @router.post("/resume")
 async def resume_session(
     request: Request,
-    _token: str = Depends(verify_token),
+
 ):
     """Resume a paused trading session."""
     bridge = request.app.state.engine_bridge

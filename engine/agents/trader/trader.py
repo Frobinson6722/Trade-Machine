@@ -55,7 +55,22 @@ async def run_trader(
 
     parsed = parse_json_from_response(response)
     if parsed:
-        return TradeSignal(**parsed)
+        # Fix common LLM response issues
+        if not parsed.get("entry_type") or parsed["entry_type"] not in ("market", "limit"):
+            parsed["entry_type"] = "market"
+        if parsed.get("confidence") is None:
+            parsed["confidence"] = 0.5
+        if parsed.get("size_pct") is None:
+            parsed["size_pct"] = 0
+        if parsed.get("action") not in ("BUY", "SELL", "HOLD"):
+            parsed["action"] = "HOLD"
+        if not parsed.get("pair"):
+            parsed["pair"] = pair
+        try:
+            return TradeSignal(**parsed)
+        except Exception as e:
+            logger.warning(f"TradeSignal validation failed: {e}")
+            pass
 
     # Fallback: HOLD if we can't parse
     logger.warning("Could not parse trader response, defaulting to HOLD")

@@ -54,7 +54,19 @@ async def run_portfolio_manager(
 
     parsed = parse_json_from_response(response)
     if parsed:
-        return FinalDecision(**parsed)
+        # Fix common LLM response issues
+        if parsed.get("action") not in ("BUY", "SELL", "HOLD"):
+            parsed["action"] = "HOLD"
+        if not parsed.get("pair"):
+            parsed["pair"] = pair
+        if parsed.get("size_pct") is None:
+            parsed["size_pct"] = 0
+        if parsed.get("approved") is None:
+            parsed["approved"] = False
+        try:
+            return FinalDecision(**parsed)
+        except Exception as e:
+            logger.warning(f"FinalDecision validation failed: {e}")
 
     # Fallback: HOLD if we can't parse
     logger.warning("Could not parse portfolio manager response, defaulting to HOLD")

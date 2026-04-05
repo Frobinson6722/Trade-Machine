@@ -248,6 +248,15 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
     if len(candles) < 20:
         return []
 
+    # Build name-based lookup
+    _by_name = {p["name"]: p for p in PATTERN_DEFINITIONS}
+
+    def _get(name: str) -> dict:
+        return dict(_by_name.get(name, {"name": name, "type": "unknown", "psychology": "", "signal": "HOLD", "confidence": 0.5, "expected_move_pct": 0}))
+
+    if len(candles) < 20:
+        return []
+
     detected = []
     prices = [c["close"] for c in candles]
     volumes = [c.get("volume", 0) for c in candles]
@@ -275,7 +284,7 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
         if abs(left_min - right_min) / left_min < 0.03 and current > left_min * 1.02:
             peak_between = max(recent[left_min_idx:right_min_idx + 1])
             if peak_between > left_min * 1.03:
-                pattern = dict(PATTERN_DEFINITIONS[0])  # Double Bottom
+                pattern = _get("Double Bottom (W Pattern)")  # Double Bottom
                 pattern["detected_at"] = candles[-1]["timestamp"]
                 pattern["price_at_detection"] = current
                 detected.append(pattern)
@@ -289,14 +298,14 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
         current = recent[-1]
 
         if abs(left_max - right_max) / left_max < 0.03 and current < left_max * 0.98:
-            pattern = dict(PATTERN_DEFINITIONS[1])  # Double Top
+            pattern = _get("Double Top (M Pattern)")  # Double Top
             pattern["detected_at"] = candles[-1]["timestamp"]
             pattern["price_at_detection"] = current
             detected.append(pattern)
 
     # ── Bollinger Squeeze ──
     if bb_width > 0 and bb_width < 0.03:
-        pattern = dict(PATTERN_DEFINITIONS[14])  # Bollinger Squeeze
+        pattern = _get("Bollinger Band Squeeze")  # Bollinger Squeeze
         pattern["detected_at"] = candles[-1]["timestamp"]
         pattern["price_at_detection"] = prices[-1]
         pattern["detail"] = f"Band width: {bb_width:.4f} (very tight)"
@@ -307,7 +316,7 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
         price_making_lower_low = prices[-1] < prices[-5]
         # Simplified: if RSI is low but price recently dropped, potential bullish divergence
         if price_making_lower_low and rsi_value > 25:
-            pattern = dict(PATTERN_DEFINITIONS[19])  # Bullish Divergence
+            pattern = _get("Bullish Divergence (RSI)")  # Bullish Divergence
             pattern["detected_at"] = candles[-1]["timestamp"]
             pattern["price_at_detection"] = prices[-1]
             pattern["detail"] = f"RSI: {rsi_value} while price at local low"
@@ -317,7 +326,7 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
     if rsi_value > 60 and len(prices) >= 10:
         price_making_higher_high = prices[-1] > prices[-5]
         if price_making_higher_high and rsi_value < 75:
-            pattern = dict(PATTERN_DEFINITIONS[20])  # Bearish Divergence
+            pattern = _get("Bearish Divergence (RSI)")  # Bearish Divergence
             pattern["detected_at"] = candles[-1]["timestamp"]
             pattern["price_at_detection"] = prices[-1]
             pattern["detail"] = f"RSI: {rsi_value} while price at local high"
@@ -325,7 +334,7 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
 
     # ── Volume Climax ──
     if vol_ratio > 2.5:
-        pattern = dict(PATTERN_DEFINITIONS[15])  # Volume Climax
+        pattern = _get("Volume Climax")  # Volume Climax
         pattern["detected_at"] = candles[-1]["timestamp"]
         pattern["price_at_detection"] = prices[-1]
         pattern["detail"] = f"Volume is {vol_ratio:.1f}x the 20-day average"
@@ -340,14 +349,14 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
         pullback = (max(second_half) - second_half[-1]) / max(second_half) if max(second_half) else 0
 
         if rally > 0.05 and 0.01 < pullback < 0.04:
-            pattern = dict(PATTERN_DEFINITIONS[7])  # Bull Flag
+            pattern = _get("Bull Flag")  # Bull Flag
             pattern["detected_at"] = candles[-1]["timestamp"]
             pattern["price_at_detection"] = prices[-1]
             detected.append(pattern)
 
     # ── Panic Capitulation ──
     if rsi_value < 25 and vol_ratio > 2.0:
-        pattern = dict(PATTERN_DEFINITIONS[18])  # Panic Capitulation
+        pattern = _get("Panic Capitulation")  # Panic Capitulation
         pattern["detected_at"] = candles[-1]["timestamp"]
         pattern["price_at_detection"] = prices[-1]
         pattern["detail"] = f"RSI: {rsi_value}, Volume: {vol_ratio:.1f}x average — possible capitulation"
@@ -357,7 +366,7 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
     if len(prices) >= 10:
         recent_high = max(prices[-10:-1]) if len(prices) > 10 else max(prices[:-1])
         if prices[-1] > recent_high * 1.03 and vol_ratio > 1.5:
-            pattern = dict(PATTERN_DEFINITIONS[17])  # FOMO Breakout
+            pattern = _get("FOMO Breakout (Fear of Missing Out)")  # FOMO Breakout
             pattern["detected_at"] = candles[-1]["timestamp"]
             pattern["price_at_detection"] = prices[-1]
             pattern["detail"] = f"Broke above {recent_high:.6f} on {vol_ratio:.1f}x volume"
@@ -368,7 +377,7 @@ def detect_patterns(candles: list[dict[str, Any]], indicators: dict[str, Any]) -
     round_levels = _get_round_levels(current_price)
     for level in round_levels:
         if abs(current_price - level) / level < 0.02:  # Within 2% of round number
-            pattern = dict(PATTERN_DEFINITIONS[16])  # Round Number
+            pattern = _get("Round Number Support/Resistance")  # Round Number
             pattern["detected_at"] = candles[-1]["timestamp"]
             pattern["price_at_detection"] = current_price
             pattern["detail"] = f"Price near psychological level ${level}"

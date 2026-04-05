@@ -66,6 +66,34 @@ async def run_trader(
             parsed["action"] = "HOLD"
         if not parsed.get("pair"):
             parsed["pair"] = pair
+
+        # Handle take_profit/stop_loss as list (Claude sometimes returns multiple levels)
+        tp = parsed.get("take_profit")
+        if isinstance(tp, list):
+            parsed["take_profit"] = tp[0]["level"] if tp and isinstance(tp[0], dict) and "level" in tp[0] else tp[0] if tp else None
+        elif tp is not None:
+            try:
+                parsed["take_profit"] = float(tp)
+            except (ValueError, TypeError):
+                parsed["take_profit"] = None
+
+        sl = parsed.get("stop_loss")
+        if isinstance(sl, list):
+            parsed["stop_loss"] = sl[0]["level"] if sl and isinstance(sl[0], dict) and "level" in sl[0] else sl[0] if sl else None
+        elif sl is not None:
+            try:
+                parsed["stop_loss"] = float(sl)
+            except (ValueError, TypeError):
+                parsed["stop_loss"] = None
+
+        # Handle limit_price
+        lp = parsed.get("limit_price")
+        if lp is not None:
+            try:
+                parsed["limit_price"] = float(lp)
+            except (ValueError, TypeError):
+                parsed["limit_price"] = None
+
         try:
             return TradeSignal(**parsed)
         except Exception as e:

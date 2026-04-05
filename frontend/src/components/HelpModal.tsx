@@ -1,107 +1,379 @@
-import { useState } from 'react'
-import { HelpCircle, X, Zap, BarChart3, Brain, GraduationCap, Settings, ArrowRight } from 'lucide-react'
+import { useState, ReactNode } from 'react'
+import { HelpCircle, X, Zap, BarChart3, Brain, GraduationCap, Settings, ArrowRight, Play, Square, Pause, TrendingUp, TrendingDown, Target, ChevronDown, AlertTriangle, Lightbulb, CheckCircle2 } from 'lucide-react'
 
-const pages = [
+/* ── Mini mockup components ─────────────────────────────────── */
+
+function MockPnLCards() {
+  return (
+    <div className="grid grid-cols-4 gap-2 text-xs">
+      <div className="bg-gray-800 rounded p-2">
+        <div className="text-gray-500 flex items-center gap-1"><TrendingUp className="w-3 h-3 text-green-400" /> Total P&L</div>
+        <div className="text-green-400 font-bold text-sm mt-0.5">+$342.18</div>
+      </div>
+      <div className="bg-gray-800 rounded p-2">
+        <div className="text-gray-500 flex items-center gap-1"><Target className="w-3 h-3" /> Win Rate</div>
+        <div className="text-green-400 font-bold text-sm mt-0.5">58.3%</div>
+      </div>
+      <div className="bg-gray-800 rounded p-2">
+        <div className="text-gray-500 flex items-center gap-1"><BarChart3 className="w-3 h-3" /> Trades</div>
+        <div className="font-bold text-sm mt-0.5">24</div>
+      </div>
+      <div className="bg-gray-800 rounded p-2">
+        <div className="text-gray-500 flex items-center gap-1"><TrendingUp className="w-3 h-3 text-green-400" /> Avg P&L</div>
+        <div className="text-green-400 font-bold text-sm mt-0.5">+$14.26</div>
+      </div>
+    </div>
+  )
+}
+
+function MockEquityCurve() {
+  return (
+    <div className="bg-gray-800 rounded p-3">
+      <div className="text-xs text-gray-500 mb-2">Equity Curve</div>
+      <svg viewBox="0 0 200 60" className="w-full h-12">
+        <defs>
+          <linearGradient id="mockGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="M0,50 L20,48 L40,45 L60,42 L80,38 L100,40 L120,35 L140,30 L160,25 L180,22 L200,15" stroke="#22c55e" strokeWidth="2" fill="none" />
+        <path d="M0,50 L20,48 L40,45 L60,42 L80,38 L100,40 L120,35 L140,30 L160,25 L180,22 L200,15 L200,60 L0,60Z" fill="url(#mockGrad)" />
+      </svg>
+      <div className="flex justify-between text-[10px] text-gray-600 mt-1">
+        <span>Apr 1</span><span>Apr 2</span><span>Apr 3</span><span>Apr 4</span><span>Apr 5</span>
+      </div>
+    </div>
+  )
+}
+
+function MockTradeRow({ pair, side, pnl, expanded }: { pair: string; side: string; pnl: number; expanded?: boolean }) {
+  return (
+    <div className="bg-gray-800 rounded">
+      <div className="flex items-center gap-3 px-3 py-2 text-xs">
+        <ChevronDown className={`w-3 h-3 text-gray-500 ${expanded ? '' : '-rotate-90'}`} />
+        <span className="font-medium">{pair}</span>
+        <span className={side === 'BUY' ? 'text-green-400' : 'text-red-400'}>{side}</span>
+        <span className="ml-auto font-medium">{pnl >= 0 ? <span className="text-green-400">+${pnl.toFixed(2)}</span> : <span className="text-red-400">-${Math.abs(pnl).toFixed(2)}</span>}</span>
+      </div>
+      {expanded && (
+        <div className="px-3 pb-2 border-t border-gray-700 pt-2 space-y-1">
+          <div className="text-[10px] text-blue-400 font-medium">Market Analyst</div>
+          <div className="text-[10px] text-gray-400">RSI at 68, MACD bullish crossover, testing $85k resistance...</div>
+          <div className="text-[10px] text-green-400 font-medium mt-1">Bull Researcher</div>
+          <div className="text-[10px] text-gray-400">Strong momentum with ETF inflows supporting price...</div>
+          <div className="text-[10px] text-red-400 font-medium mt-1">Bear Researcher</div>
+          <div className="text-[10px] text-gray-400">Overbought conditions, potential resistance at $86k...</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MockAgentLog() {
+  return (
+    <div className="space-y-2">
+      <div className="bg-gray-800 rounded p-2">
+        <div className="text-[10px] text-blue-400 font-medium mb-1">Market Analyst</div>
+        <div className="text-[10px] text-gray-400 leading-relaxed">BTC showing bullish momentum. RSI: 65 (neutral-bullish). MACD just crossed bullish. Volume 15% above 20-day average. Key resistance at $86,200.</div>
+      </div>
+      <div className="bg-gray-800 rounded p-2">
+        <div className="text-[10px] text-purple-400 font-medium mb-1">News Analyst</div>
+        <div className="text-[10px] text-gray-400 leading-relaxed">Positive: SEC approved new BTC ETF options. Neutral: Fed holding rates steady. No negative regulatory news in last 24h.</div>
+      </div>
+      <div className="bg-gray-800 rounded p-2">
+        <div className="text-[10px] text-pink-400 font-medium mb-1">Sentiment Analyst</div>
+        <div className="text-[10px] text-gray-400 leading-relaxed">Fear & Greed: 72 (Greed). Reddit sentiment improving. Twitter mentions up 23%. Contrarian caution: approaching extreme greed.</div>
+      </div>
+    </div>
+  )
+}
+
+function MockLearningTimeline() {
+  return (
+    <div className="space-y-2">
+      <div className="bg-gray-800 rounded p-2 flex gap-2">
+        <Brain className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500 uppercase">Reflection</span>
+            <span className="text-[10px] px-1 rounded bg-red-500/20 text-red-400">loss</span>
+          </div>
+          <div className="text-[10px] text-gray-400 mt-0.5">RSI was at 72 but volume was declining — should have weighted volume divergence more heavily before entering.</div>
+        </div>
+      </div>
+      <div className="bg-gray-800 rounded p-2 flex gap-2">
+        <Lightbulb className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500 uppercase">Hypothesis</span>
+            <span className="text-[10px] px-1 rounded bg-green-500/20 text-green-400">validated</span>
+          </div>
+          <div className="text-[10px] text-gray-400 mt-0.5">When RSI &gt; 70 AND volume is declining, short-term pullback occurs 73% of the time.</div>
+        </div>
+      </div>
+      <div className="bg-gray-800 rounded p-2 flex gap-2">
+        <Settings className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-500 uppercase">Strategy Update</span>
+          </div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Added rule: Skip BUY when RSI &gt; 70 and volume ratio &lt; 0.8</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MockStages() {
+  return (
+    <div className="space-y-2">
+      {[
+        { name: 'Stage 1: Paper', desc: '$10,000 fake money', rule: 'Win >55% of 100+ trades', status: 'current', color: 'border-accent' },
+        { name: 'Stage 2: Micro', desc: '$1 real trades', rule: 'Stay profitable over 1,000 trades', status: 'locked', color: 'border-gray-700' },
+        { name: 'Stage 3: Graduated', desc: '$2 → $5 → $10', rule: 'Scale only if consistently profitable', status: 'locked', color: 'border-gray-700' },
+      ].map((s, i) => (
+        <div key={i} className={`rounded p-2 border ${s.color} ${s.status === 'current' ? 'bg-accent/5' : 'bg-gray-800/50'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs font-medium">{s.name}</div>
+              <div className="text-[10px] text-gray-500">{s.desc}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] text-gray-400">{s.rule}</div>
+              {s.status === 'current' ? (
+                <div className="text-[10px] text-accent font-medium">Active now</div>
+              ) : (
+                <div className="text-[10px] text-gray-600">Locked</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MockAgentPipeline() {
+  const stages = [
+    { agents: ['Market', 'News', 'Sentiment', 'Fundamentals'], label: 'Analysts gather data', color: 'bg-blue-500/20 text-blue-400' },
+    { agents: ['Bull', 'Bear'], label: 'Researchers debate', color: 'bg-green-500/20 text-green-400' },
+    { agents: ['Research Mgr'], label: 'Picks the winner', color: 'bg-yellow-500/20 text-yellow-400' },
+    { agents: ['Trader'], label: 'Proposes a trade', color: 'bg-accent/20 text-accent' },
+    { agents: ['Aggressive', 'Conservative', 'Neutral'], label: 'Risk debate', color: 'bg-orange-500/20 text-orange-400' },
+    { agents: ['Portfolio Mgr'], label: 'Final decision', color: 'bg-indigo-500/20 text-indigo-400' },
+  ]
+  return (
+    <div className="space-y-1.5">
+      {stages.map((s, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className="w-5 text-center text-[10px] text-gray-600 font-mono">{i + 1}</div>
+          <div className={`flex-1 rounded px-2 py-1.5 ${s.color}`}>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {s.agents.map((a, j) => (
+                <span key={j} className="text-[10px] font-medium">{a}</span>
+              ))}
+              {s.agents.length > 1 && <span className="text-[10px] opacity-50">×{s.agents.length}</span>}
+            </div>
+            <div className="text-[10px] opacity-70 mt-0.5">{s.label}</div>
+          </div>
+          {i < stages.length - 1 && <ArrowRight className="w-3 h-3 text-gray-600 shrink-0" />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MockControlBar() {
+  return (
+    <div className="bg-gray-800 rounded p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium">Dashboard</div>
+          <div className="text-[10px] text-gray-500">Stage: paper | Mode: paper</div>
+        </div>
+        <div className="flex gap-1.5">
+          <button className="bg-blue-500 text-white text-[10px] px-2 py-1 rounded flex items-center gap-1">
+            <Play className="w-2.5 h-2.5" /> Start Paper Trading
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400">
+        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+        Engine is running — analyzing BTC & ETH with Claude AI agents
+      </div>
+    </div>
+  )
+}
+
+function MockSettingsCard() {
+  return (
+    <div className="bg-gray-800 rounded p-3 space-y-2">
+      <div>
+        <div className="text-[10px] text-gray-500 mb-0.5">Claude Model</div>
+        <div className="bg-gray-900 rounded px-2 py-1 text-[10px] border border-gray-700">Claude Sonnet 4 (recommended)</div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-[10px] text-gray-500 mb-0.5">Trading Pairs</div>
+          <div className="bg-gray-900 rounded px-2 py-1 text-[10px] border border-gray-700">BTC-USD, ETH-USD</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-500 mb-0.5">Cycle Interval</div>
+          <div className="bg-gray-900 rounded px-2 py-1 text-[10px] border border-gray-700">15 minutes</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-[10px] text-gray-500 mb-0.5">Stop Loss %</div>
+          <div className="bg-gray-900 rounded px-2 py-1 text-[10px] border border-gray-700">3%</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-500 mb-0.5">Take Profit %</div>
+          <div className="bg-gray-900 rounded px-2 py-1 text-[10px] border border-gray-700">6%</div>
+        </div>
+      </div>
+      <div className="border border-red-800 rounded p-2 mt-1">
+        <div className="flex items-center gap-1 text-[10px] text-red-400 font-medium">
+          <AlertTriangle className="w-3 h-3" /> Live Trading
+        </div>
+        <div className="text-[10px] text-gray-500 mt-0.5">Requires Robinhood credentials + stage graduation</div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Annotation wrapper ─────────────────────────────────────── */
+
+function Annotation({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="relative">
+      <div className="absolute -left-1 -top-1 px-1.5 py-0.5 bg-accent rounded text-[9px] font-bold text-white z-10">{label}</div>
+      <div className="border border-accent/30 rounded-lg p-2 pt-4 bg-gray-950/50">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/* ── Page definitions with visual mockups ────────────────────── */
+
+interface Page {
+  title: string
+  icon: typeof Zap
+  description: string
+  mockup: () => ReactNode
+  highlight: string
+}
+
+const pages: Page[] = [
   {
     title: 'Welcome to Trade Machine',
     icon: Zap,
-    content: [
-      'Trade Machine is an autonomous crypto trading bot powered by Claude AI.',
-      'It uses 12 AI agents that debate and collaborate to decide whether to buy or sell BTC and ETH.',
-      'Right now it trades with $10,000 of fake money (paper trading). Zero risk. It must prove itself profitable before touching real money.',
-    ],
+    description: 'An autonomous crypto trading bot powered by Claude AI. 12 agents debate and collaborate to trade BTC and ETH — starting with $10,000 fake money. Zero risk.',
+    mockup: () => (
+      <div className="space-y-3">
+        <Annotation label="Your dashboard will look like this">
+          <MockControlBar />
+          <div className="mt-2"><MockPnLCards /></div>
+          <div className="mt-2"><MockEquityCurve /></div>
+        </Annotation>
+      </div>
+    ),
     highlight: 'Click "Start Paper Trading" on the Dashboard to begin.',
   },
   {
-    title: 'How a Trading Cycle Works',
+    title: 'The 12-Agent Pipeline',
     icon: ArrowRight,
-    content: [
-      '1. Every 15 minutes, the engine fetches live crypto prices',
-      '2. Four analyst agents analyze: price charts, news, social sentiment, and on-chain data',
-      '3. A Bull Researcher argues to BUY, a Bear Researcher argues to SELL',
-      '4. They debate back and forth for 2 rounds',
-      '5. A Research Manager picks the winning argument',
-      '6. A Trader proposes a specific trade (pair, size, stop-loss)',
-      '7. Three Risk Debators argue about the risk level',
-      '8. A Portfolio Manager makes the final call: approve or reject',
-      '9. If approved, the trade executes with paper money',
-    ],
-    highlight: 'Each cycle takes 1-2 minutes because it makes ~12 Claude API calls.',
+    description: 'Every 15 minutes, 12 Claude AI agents run in sequence — analyzing data, debating, and deciding whether to trade.',
+    mockup: () => (
+      <Annotation label="Each cycle runs these 6 steps">
+        <MockAgentPipeline />
+      </Annotation>
+    ),
+    highlight: 'Each cycle takes 1-2 minutes and makes ~12 Claude API calls.',
   },
   {
-    title: 'Dashboard Page',
+    title: 'Dashboard: Your Control Center',
     icon: BarChart3,
-    content: [
-      'Start/Stop/Pause — Controls the trading engine',
-      'Green pulsing dot — Engine is actively running cycles',
-      'P&L Cards — Total profit/loss, win rate, number of trades, average P&L per trade',
-      'Stage Progress — Shows how close you are to graduating to real money',
-      'Equity Curve — Chart of your portfolio value over time',
-      'Recent Trades — Last 5 trades with expandable agent reasoning',
-    ],
-    highlight: 'Click any trade row to see exactly what each AI agent said.',
+    description: 'Start/stop the engine, see P&L at a glance, track your equity curve, and browse recent trades.',
+    mockup: () => (
+      <div className="space-y-3">
+        <Annotation label="Controls & Status">
+          <MockControlBar />
+        </Annotation>
+        <Annotation label="Performance at a glance">
+          <MockPnLCards />
+        </Annotation>
+        <Annotation label="Portfolio value over time">
+          <MockEquityCurve />
+        </Annotation>
+      </div>
+    ),
+    highlight: 'The green pulsing dot means the engine is actively running cycles.',
   },
   {
-    title: 'Trades Page',
+    title: 'Trades: Click to See Why',
     icon: BarChart3,
-    content: [
-      'Full history of every trade the bot has made',
-      'Filter by pair (BTC, ETH) or status (open, closed)',
-      'Each row shows: entry price, exit price, P&L, which stage it was in',
-      'Click any row to expand and see the full agent reasoning chain',
-      'Green = profitable trade, Red = losing trade',
-    ],
-    highlight: 'This is your trade journal — every decision is recorded and explainable.',
+    description: 'Every trade is recorded. Click any row to expand it and see exactly what each AI agent said when making that decision.',
+    mockup: () => (
+      <Annotation label="Click any trade to expand agent reasoning">
+        <div className="space-y-1.5">
+          <MockTradeRow pair="BTC-USD" side="BUY" pnl={23.45} />
+          <MockTradeRow pair="ETH-USD" side="BUY" pnl={-8.12} expanded />
+          <MockTradeRow pair="BTC-USD" side="SELL" pnl={45.00} />
+        </div>
+      </Annotation>
+    ),
+    highlight: 'Green = profit, Red = loss. Every decision is explainable.',
   },
   {
-    title: 'Agents Page',
+    title: 'Agents: The Full Reasoning Chain',
     icon: Brain,
-    content: [
-      'Browse what every AI agent said during each trading cycle',
-      'Filter by agent type (Market Analyst, Bull Researcher, etc.)',
-      'Filter by cycle ID to see all agents for one specific decision',
-      'Each agent has a colored label so you can quickly scan the reasoning chain',
-      'This is how you audit WHY the bot made a specific trade',
-    ],
-    highlight: 'If a trade loses money, come here to understand what went wrong.',
+    description: 'See what every AI agent said during each trading cycle. Filter by agent type or cycle ID to audit any specific decision.',
+    mockup: () => (
+      <Annotation label="Each agent's analysis is logged">
+        <MockAgentLog />
+      </Annotation>
+    ),
+    highlight: 'If a trade loses money, come here to understand exactly what went wrong.',
   },
   {
-    title: 'Learning Page',
+    title: 'Learning: The Bot Gets Smarter',
     icon: GraduationCap,
-    content: [
-      'The bot learns from every trade — this page shows how',
-      'Reflections — After each trade closes, the AI reviews what went right/wrong',
-      'Hypotheses — For losing trades, the AI forms testable theories about why it lost',
-      'Strategy Updates — When hypotheses are validated, the bot updates its own trading rules',
-      'Current Parameters — The live settings the bot uses (stop-loss %, confidence threshold, etc.)',
-    ],
-    highlight: 'Every night at midnight UTC, the bot reviews all trades and rewrites its rules.',
+    description: 'After every trade, the bot reflects on what happened. For losses, it forms hypotheses and tests them. When validated, it rewrites its own rules.',
+    mockup: () => (
+      <Annotation label="The learning timeline shows how the bot evolves">
+        <MockLearningTimeline />
+      </Annotation>
+    ),
+    highlight: 'Every night at midnight, the bot reviews all trades and updates its strategy.',
   },
   {
-    title: 'Settings Page',
+    title: 'Settings: Configure Everything',
     icon: Settings,
-    content: [
-      'Claude Model — Choose which Claude model powers the agents (Sonnet = recommended)',
-      'Trading Pairs — Which cryptos to analyze (default: BTC-USD, ETH-USD)',
-      'Cycle Interval — How often to run analysis (default: 15 minutes)',
-      'Risk Parameters — Max position size, stop-loss %, take-profit %',
-      'Live Trading — Switch from paper to real money (requires Robinhood + stage graduation)',
-    ],
+    description: 'Choose your Claude model, trading pairs, cycle frequency, and risk parameters. The live trading toggle is locked until the bot proves itself.',
+    mockup: () => (
+      <Annotation label="All settings in one place">
+        <MockSettingsCard />
+      </Annotation>
+    ),
     highlight: 'WARNING: The Live Trading toggle uses real money. Only available after proving profitability.',
   },
   {
-    title: 'The 3 Stages',
+    title: 'The 3 Stages to Real Money',
     icon: GraduationCap,
-    content: [
-      'Stage 1: PAPER — Trade with $10,000 fake money. Must win >55% of 100+ trades to graduate.',
-      'Stage 2: MICRO — $1 real trades on Robinhood. Must stay profitable over 1,000 trades.',
-      'Stage 3: GRADUATED — Scale up: $2, then $5, then $10 per trade. Only if consistently profitable.',
-      'You cannot skip stages. The bot must earn its way to real money.',
-      'Stage transitions require your manual approval on the Dashboard.',
-    ],
-    highlight: 'You are currently in Stage 1 (Paper). The bot is proving itself with fake money.',
+    description: 'The bot must earn its way to real money. It cannot skip stages. You manually approve each graduation.',
+    mockup: () => (
+      <Annotation label="Your current progress">
+        <MockStages />
+      </Annotation>
+    ),
+    highlight: 'You are in Stage 1 (Paper). The bot is proving itself with fake money.',
   },
 ]
+
+/* ── Main component ──────────────────────────────────────────── */
 
 export default function HelpModal() {
   const [isOpen, setIsOpen] = useState(false)
@@ -112,7 +384,6 @@ export default function HelpModal() {
 
   return (
     <>
-      {/* Help button */}
       <button
         onClick={() => { setIsOpen(true); setCurrentPage(0) }}
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors text-sm"
@@ -121,81 +392,49 @@ export default function HelpModal() {
         How it works
       </button>
 
-      {/* Modal overlay */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
               <div className="flex items-center gap-2">
                 <Icon className="w-5 h-5 text-accent" />
                 <h2 className="font-bold text-lg">{page.title}</h2>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1 rounded hover:bg-gray-800 text-gray-400"
-              >
+              <button onClick={() => setIsOpen(false)} className="p-1 rounded hover:bg-gray-800 text-gray-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {page.content.map((line, i) => (
-                <p key={i} className="text-sm text-gray-300 leading-relaxed">
-                  {line}
-                </p>
-              ))}
-
-              {page.highlight && (
-                <div className="mt-4 px-3 py-2 bg-accent/10 border border-accent/30 rounded-lg">
-                  <p className="text-sm text-accent font-medium">{page.highlight}</p>
-                </div>
-              )}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <p className="text-sm text-gray-300 leading-relaxed">{page.description}</p>
+              {page.mockup()}
+              <div className="px-3 py-2 bg-accent/10 border border-accent/30 rounded-lg">
+                <p className="text-sm text-accent font-medium">{page.highlight}</p>
+              </div>
             </div>
 
-            {/* Footer with navigation */}
+            {/* Footer */}
             <div className="flex items-center justify-between p-4 border-t border-gray-800">
-              <div className="text-xs text-gray-500">
-                {currentPage + 1} of {pages.length}
-              </div>
-
-              {/* Page dots */}
+              <div className="text-xs text-gray-500">{currentPage + 1} of {pages.length}</div>
               <div className="flex gap-1.5">
                 {pages.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setCurrentPage(i)}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      i === currentPage ? 'bg-accent' : 'bg-gray-700 hover:bg-gray-600'
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${i === currentPage ? 'bg-accent' : 'bg-gray-700 hover:bg-gray-600'}`}
                   />
                 ))}
               </div>
-
               <div className="flex gap-2">
                 {currentPage > 0 && (
-                  <button
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    className="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 text-sm hover:bg-gray-700"
-                  >
-                    Back
-                  </button>
+                  <button onClick={() => setCurrentPage(currentPage - 1)} className="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 text-sm hover:bg-gray-700">Back</button>
                 )}
                 {currentPage < pages.length - 1 ? (
-                  <button
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    className="px-3 py-1.5 rounded-lg bg-accent text-white text-sm hover:bg-blue-600"
-                  >
-                    Next
-                  </button>
+                  <button onClick={() => setCurrentPage(currentPage + 1)} className="px-3 py-1.5 rounded-lg bg-accent text-white text-sm hover:bg-blue-600">Next</button>
                 ) : (
-                  <button
-                    onClick={() => setIsOpen(false)}
-                    className="px-3 py-1.5 rounded-lg bg-accent text-white text-sm hover:bg-blue-600"
-                  >
-                    Got it!
-                  </button>
+                  <button onClick={() => setIsOpen(false)} className="px-3 py-1.5 rounded-lg bg-accent text-white text-sm hover:bg-blue-600">Got it!</button>
                 )}
               </div>
             </div>

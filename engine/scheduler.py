@@ -184,10 +184,16 @@ class TradingScheduler:
             sentiment_data = await self.sentiment_provider.get_social_sentiment(pair)
             onchain_data = await self.onchain_provider.get_token_metrics(pair)
 
-            # 2. Get memory context
+            # 2. Check open positions — close if stop/take-profit hit
+            ticker = await self.data_provider.get_ticker(pair)
+            current_price = ticker.get("price", 0)
+            if current_price > 0:
+                await self._check_and_close_position(pair, current_price, cycle_id)
+
+            # 3. Get memory context
             memory_context = self.memory.get_context_for_pair(pair)
 
-            # 3. Run the analysis graph
+            # 4. Run the analysis graph
             result = await self.graph.run_cycle(
                 pair=pair,
                 market_data=market_data,
@@ -197,7 +203,7 @@ class TradingScheduler:
                 memory_context=memory_context,
             )
 
-            # 4. Execute if approved
+            # 5. Execute if approved
             decision = result.get("final_decision")
             if decision and hasattr(decision, "approved") and decision.approved:
                 ticker = await self.data_provider.get_ticker(pair)
@@ -268,6 +274,80 @@ class TradingScheduler:
             logger.error(f"Cycle {cycle_id} for {pair} failed: {e}", exc_info=True)
             if self.on_agent_log:
                 await self.on_agent_log("system", f"Cycle {cycle_id} for {pair} failed: {error_msg}")
+
+    async def _check_and_close_position(self, pair: str, current_price: float, cycle_id: str) -> None:
+        """Check open positions and close them if stop/take-profit hit or if P&L threshold reached."""
+        pos = self.position_manager.get_position(pair)
+        if not pos:
+            return
+
+        entry = pos.get("entry_price", 0)
+        if not entry:
+            return
+
+        pnl_pct = ((current_price / entry) - 1) * 100
+        sl = pos.get("stop_loss")
+        tp = pos.get("take_profit")
+
+        should_close = False
+        trigger = "manual"
+
+        # Check stop-loss
+        if sl and current_price <= sl:
+            should_close = True
+            trigger = "stop_loss"
+        # Check take-profit
+        elif tp and current_price >= tp:
+            should_close = True
+            trigger = "take_profit"
+        # Auto-close at -5% loss (safety net)
+        elif pnl_pct <= -5:
+            should_close = True
+            trigger = "auto_stop_loss"
+        # Auto-close at +8% profit (lock in gains)
+        elif pnl_pct >= 8:
+            should_close = True
+            trigger = "auto_take_profit"
+
+        if should_close:
+            old_cycle = pos.get("cycle_id", cycle_id)
+            result = await self.executor.paper_trader.place_order(
+                pair=pair, side="SELL", size_usd=0, current_price=current_price
+            )
+            if result.get("success"):
+                trade = result.get("trade", {})
+                pnl = trade.get("pnl", 0)
+                pnl_pct_actual = trade.get("pnl_pct", pnl_pct)
+
+                self.position_manager.close_position(pair)
+                self.memory.record_trade_exit(
+                    cycle_id=old_cycle, exit_price=current_price,
+                    pnl=pnl, pnl_pct=pnl_pct_actual, trigger=trigger,
+                )
+                self.stage_manager.record_trade(pnl)
+
+                if self.on_agent_log:
+                    emoji = "profit" if pnl > 0 else "loss"
+                    await self.on_agent_log("system",
+                        f"CLOSED {pair} position ({trigger}): P&L ${pnl:+.2f} ({pnl_pct_actual:+.1f}%)")
+
+                if self.on_trade:
+                    await self.on_trade({
+                        "cycle_id": old_cycle, "pair": pair, "action": "SELL",
+                        "price": current_price, "pnl": pnl, "pnl_pct": pnl_pct_actual,
+                        "trigger": trigger, "stage": self.stage_manager.get_current_stage(),
+                    })
+
+                # Reflect on closed trade
+                await self._reflect_on_trade(old_cycle, pair, pnl, pnl_pct_actual)
+            return
+
+        # Log unrealized P&L for open positions
+        if self.on_agent_log:
+            qty = pos.get("quantity", 0)
+            unrealized = (current_price - entry) * qty
+            await self.on_agent_log("system",
+                f"Open position {pair}: entry ${entry:.6f}, current ${current_price:.6f}, unrealized P&L ${unrealized:+.2f} ({pnl_pct:+.1f}%)")
 
     async def _check_stops(self, pair: str) -> None:
         """Check if any stops have been triggered for a pair."""

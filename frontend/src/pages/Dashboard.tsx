@@ -3,7 +3,7 @@ import PnLCard from '../components/PnLCard'
 import EquityCurve from '../components/EquityCurve'
 import TradeTable from '../components/TradeTable'
 import LiveActivityFeed from '../components/LiveActivityFeed'
-import { useSessionStatus, useTrades, useEquityCurve, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
+import { useSessionStatus, useTrades, useEquityCurve, usePortfolio, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
 import { Play, Square, Pause, SkipForward, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 
 type Toast = { message: string; type: 'success' | 'error' | 'info' }
@@ -12,6 +12,7 @@ export default function Dashboard() {
   const { data: status } = useSessionStatus()
   const { data: tradesData } = useTrades({ limit: 5 })
   const { data: equityData } = useEquityCurve()
+  const { data: portfolio } = usePortfolio()
   const startSession = useStartSession()
   const stopSession = useStopSession()
   const pauseSession = usePauseSession()
@@ -164,7 +165,7 @@ export default function Dashboard() {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
           </div>
           <span className="text-sm text-green-700 font-medium">
-            Engine is running — analyzing XRP & DOGE with Claude AI agents. Cycles run every 15 minutes.
+            Engine is running — analyzing XRP & DOGE with Claude AI agents. Cycles run every 5 minutes.
           </span>
         </div>
       )}
@@ -215,6 +216,32 @@ export default function Dashboard() {
               Eligible for graduation!
             </div>
           )}
+        </div>
+      )}
+
+      {/* Open Positions */}
+      {portfolio?.positions && portfolio.positions.length > 0 && (
+        <div className="card">
+          <h3 className="text-sm font-medium text-muted mb-3">Open Positions</h3>
+          <div className="space-y-2">
+            {portfolio.positions.map((pos) => (
+              <div key={pos.pair} className="flex items-center justify-between card-inner">
+                <div>
+                  <span className="font-semibold text-primary">{pos.pair}</span>
+                  <span className="text-sm text-muted ml-3">Entry: ${pos.entry_price.toFixed(6)}</span>
+                  <span className="text-sm text-muted ml-3">Current: ${pos.current_price.toFixed(6)}</span>
+                </div>
+                <div className="text-right">
+                  <span className={`font-bold ${pos.unrealized_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)}
+                  </span>
+                  <span className={`text-sm ml-2 ${pos.unrealized_pnl_pct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    ({pos.unrealized_pnl_pct >= 0 ? '+' : ''}{pos.unrealized_pnl_pct.toFixed(1)}%)
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

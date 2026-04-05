@@ -219,12 +219,17 @@ class TradingScheduler:
                         })
 
                         if self.on_trade:
+                            actual_size = trade_size or (balance * decision.size_pct / 100)
                             await self.on_trade({
                                 "cycle_id": cycle_id,
                                 "pair": pair,
                                 "action": decision.action,
                                 "price": current_price,
+                                "size_usd": actual_size,
+                                "stop_loss": decision.stop_loss,
+                                "take_profit": decision.take_profit,
                                 "stage": self.stage_manager.get_current_stage(),
+                                "mode": self.executor.mode,
                             })
 
             # 5. Check existing position stops

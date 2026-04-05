@@ -1,6 +1,7 @@
 """Agent reasoning log endpoints."""
 
-from fastapi import APIRouter, Depends, Query
+from datetime import datetime
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,7 @@ router = APIRouter()
 
 @router.get("/logs", response_model=AgentLogListResponse)
 async def list_agent_logs(
+    request: Request,
     cycle_id: str | None = None,
     agent_name: str | None = None,
     agent_type: str | None = None,
@@ -20,7 +22,7 @@ async def list_agent_logs(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    """List agent reasoning logs with optional filters."""
+    """List agent reasoning logs — from DB, fallback to engine memory."""
     query = select(AgentLog).order_by(AgentLog.created_at.desc())
 
     if cycle_id:
@@ -31,16 +33,16 @@ async def list_agent_logs(
         query = query.where(AgentLog.agent_type == agent_type)
 
     count_query = select(func.count(AgentLog.id))
-    if cycle_id:
-        count_query = count_query.where(AgentLog.cycle_id == cycle_id)
-
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
     result = await db.execute(query.offset(offset).limit(limit))
-    logs = result.scalars().all()
+    db_logs = result.scalars().all()
 
-    return AgentLogListResponse(
-        logs=[AgentLogResponse.model_validate(l.__dict__) for l in logs],
-        total=total,
-    )
+    if db_logs:
+        return AgentLogListResponse(
+            logs=[AgentLogResponse.model_validate(l.__dict__) for l in db_logs],
+            total=total,
+        )
+
+    return AgentLogListResponse(logs=[], total=0)

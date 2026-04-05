@@ -1,21 +1,31 @@
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LayoutDashboard, ArrowLeftRight, Brain, GraduationCap, Settings, Zap } from 'lucide-react'
 import StatusBadge from './StatusBadge'
 import HelpModal from './HelpModal'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { useActivityFeed } from '../hooks/useActivityFeed'
 
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/trades', label: 'Trades', icon: ArrowLeftRight },
-  { path: '/agents', label: 'Agents', icon: Brain },
-  { path: '/learning', label: 'Learning', icon: GraduationCap },
-  { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/', label: 'Dashboard', icon: LayoutDashboard, countKey: null },
+  { path: '/trades', label: 'Trades', icon: ArrowLeftRight, countKey: 'trades' as const },
+  { path: '/agents', label: 'Agents', icon: Brain, countKey: 'agents' as const },
+  { path: '/learning', label: 'Learning', icon: GraduationCap, countKey: 'learning' as const },
+  { path: '/settings', label: 'Settings', icon: Settings, countKey: null },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {
   const location = useLocation()
   const { connected } = useWebSocket()
+  const { counts, clearCount } = useActivityFeed()
+
+  // Clear count when visiting a page
+  useEffect(() => {
+    const current = navItems.find(n => n.path === location.pathname)
+    if (current?.countKey) {
+      clearCount(current.countKey)
+    }
+  }, [location.pathname, clearCount])
 
   return (
     <div className="flex h-screen">
@@ -30,8 +40,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
-          {navItems.map(({ path, label, icon: Icon }) => {
+          {navItems.map(({ path, label, icon: Icon, countKey }) => {
             const active = location.pathname === path
+            const count = countKey ? counts[countKey] : 0
             return (
               <Link
                 key={path}
@@ -44,6 +55,11 @@ export default function Layout({ children }: { children: ReactNode }) {
               >
                 <Icon className="w-4 h-4" />
                 {label}
+                {count > 0 && (
+                  <span className="ml-auto bg-accent text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
               </Link>
             )
           })}

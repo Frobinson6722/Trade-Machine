@@ -164,7 +164,7 @@ export default function Dashboard() {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
           </div>
           <span className="text-sm text-green-400">
-            Engine is running — analyzing BTC & ETH with Claude AI agents. Cycles run every 15 minutes.
+            Engine is running — analyzing XRP & DOGE with Claude AI agents. Cycles run every 15 minutes.
           </span>
         </div>
       )}
@@ -182,7 +182,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg">
           <Info className="w-4 h-4 text-gray-400" />
           <span className="text-sm text-gray-400">
-            Engine is stopped. Click "Start Paper Trading" to begin. Make sure your Anthropic API key is set in the .env file.
+            Engine is stopped. Click "Start Paper Trading" to begin analyzing XRP & DOGE. Make sure your Anthropic API key is set in the .env file.
           </span>
         </div>
       )}

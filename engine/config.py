@@ -12,7 +12,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY", ""),
 
     # Trading pairs
-    "trading_pairs": os.getenv("DEFAULT_TRADING_PAIRS", "BTC-USD,ETH-USD").split(","),
+    "trading_pairs": os.getenv("DEFAULT_TRADING_PAIRS", "XRP-USD,DOGE-USD").split(","),
 
     # Cycle settings
     "cycle_interval_seconds": int(os.getenv("CYCLE_INTERVAL_SECONDS", "900")),

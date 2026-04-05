@@ -29,10 +29,10 @@ export default function TradesPage() {
           onChange={(e) => { setPair(e.target.value); setPage(0) }}
         >
           <option value="">All Pairs</option>
+          <option value="XRP-USD">XRP-USD</option>
+          <option value="DOGE-USD">DOGE-USD</option>
           <option value="BTC-USD">BTC-USD</option>
           <option value="ETH-USD">ETH-USD</option>
-          <option value="SOL-USD">SOL-USD</option>
-          <option value="DOGE-USD">DOGE-USD</option>
         </select>
 
         <select

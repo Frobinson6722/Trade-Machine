@@ -21,6 +21,7 @@ from engine.dataflows.news_provider import CryptoPanicNewsProvider
 from engine.dataflows.sentiment_provider import CryptoSentimentProvider
 from engine.dataflows.onchain_provider import DefiLlamaOnchainProvider
 from engine.dataflows.technical_indicators import compute_indicators
+from engine.dataflows.pattern_library import detect_patterns
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,24 @@ class TradingScheduler:
                 await self.on_agent_log("system", f"Fetching market data for {pair}...")
             market_data_raw = await self.data_provider.get_ohlcv(pair)
             indicators = compute_indicators(market_data_raw)
-            market_data = {"candles": market_data_raw[-20:], "indicators": indicators}
+
+            # Detect chart patterns with psychology
+            patterns = detect_patterns(market_data_raw, indicators)
+            if patterns and self.on_agent_log:
+                pattern_names = [p["name"] for p in patterns]
+                await self.on_agent_log("system", f"Detected patterns for {pair}: {', '.join(pattern_names)}")
+
+            # Fetch historical data (7d, 30d, 90d, 365d)
+            if self.on_agent_log:
+                await self.on_agent_log("system", f"Loading historical data for {pair} (7d/30d/90d/365d)...")
+            historical = await self.data_provider.get_historical_data(pair)
+
+            market_data = {
+                "candles": market_data_raw[-20:],
+                "indicators": indicators,
+                "patterns": patterns,
+                "historical": historical,
+            }
 
             news_data = await self.news_provider.get_news(pair)
             sentiment_data = await self.sentiment_provider.get_social_sentiment(pair)

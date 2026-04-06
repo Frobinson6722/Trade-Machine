@@ -85,7 +85,7 @@ class BinanceProvider:
         }.get(interval, "1m")
 
         try:
-            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
                 async with session.get(
                     f"{self.base_url}/klines",
                     params={
@@ -135,7 +135,7 @@ class BinanceProvider:
             return cached["data"]
 
         try:
-            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
                 async with session.get(
                     f"{self.base_url}/ticker/24hr",
                     params={"symbol": symbol},

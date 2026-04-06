@@ -166,13 +166,22 @@ class RulesEngine:
             if now - last_trade < self.thresholds["cooldown_seconds"]:
                 return
 
-            # 4. Compute indicators
+            # 4. Compute indicators on 1-minute candles
             indicators = compute_indicators(candles)
             if "error" in indicators:
                 return
 
-            # 5. Generate signal from rules
-            signal = self._evaluate_rules(pair, current_price, indicators)
+            # 5. Multi-timeframe: also check 15-minute candles
+            candles_15m = await self.data_provider.get_ohlcv(pair, interval="15m", limit=50)
+            indicators_15m = compute_indicators(candles_15m) if candles_15m and len(candles_15m) >= 20 else None
+
+            # 6. BTC correlation: check if BTC is dumping (skip for BTC itself)
+            btc_bearish = False
+            if pair != "BTC-USD":
+                btc_bearish = await self._is_btc_bearish()
+
+            # 7. Generate signal from rules
+            signal = self._evaluate_rules(pair, current_price, indicators, indicators_15m, btc_bearish, candles)
 
             if self.on_agent_log:
                 await self.on_agent_log("system",
@@ -186,10 +195,13 @@ class RulesEngine:
                 size_usd = self.paper_trader.cash_balance * (size_pct / 100)
 
                 if size_usd > 1:
-                    tp_pct = self.thresholds["take_profit_pct"] / 100
-                    sl_pct = self.thresholds["stop_loss_pct"] / 100
-                    stop_loss = current_price * (1 - sl_pct)
-                    take_profit = current_price * (1 + tp_pct)
+                    # ATR-based dynamic stops: tighter in calm markets, wider in volatile
+                    atr_data = indicators.get("atr", {})
+                    atr_pct = atr_data.get("pct_of_price", 1.5) if isinstance(atr_data, dict) else 1.5
+                    sl_multiplier = max(0.3, min(1.0, atr_pct * 0.3))  # 0.3% to 1.0% based on volatility
+                    tp_multiplier = sl_multiplier * 1.5  # Always 1.5:1 reward:risk ratio
+                    stop_loss = current_price * (1 - sl_multiplier / 100)
+                    take_profit = current_price * (1 + tp_multiplier / 100)
 
                     result = await self.paper_trader.place_order(
                         pair=pair, side="BUY", size_usd=size_usd,
@@ -238,10 +250,210 @@ class RulesEngine:
         except Exception as e:
             logger.error(f"Cycle {cycle_id} failed: {e}", exc_info=True)
 
-    def _evaluate_rules(self, pair: str, price: float, indicators: dict) -> dict[str, Any]:
-        """Pure rules-based signal generation. No LLM. Just math."""
+    async def _is_btc_bearish(self) -> bool:
+        """Check if BTC is in a bearish state. If so, altcoins will likely drop too."""
+        try:
+            btc_candles = await self.data_provider.get_ohlcv("BTC-USD", interval="5m", limit=30)
+            if not btc_candles or len(btc_candles) < 14:
+                return False
+            btc_indicators = compute_indicators(btc_candles)
+            btc_rsi = btc_indicators.get("rsi", {})
+            btc_rsi_val = btc_rsi.get("value", 50) if isinstance(btc_rsi, dict) else 50
+            btc_macd = btc_indicators.get("macd", {})
+            btc_crossover = btc_macd.get("crossover", "neutral") if isinstance(btc_macd, dict) else "neutral"
+
+            # BTC is bearish if RSI dropping AND MACD bearish
+            if btc_rsi_val < 40 and btc_crossover in ("bearish", "bearish_crossover"):
+                return True
+            # BTC is dumping hard
+            if btc_rsi_val < 30:
+                return True
+            return False
+        except Exception:
+            return False  # If we can't check, don't block trades
+
+    def _compute_advanced_signals(self, candles: list[dict]) -> dict[str, Any]:
+        """Compute additional signals from raw candle data. Pure math."""
+        closes = [c["close"] for c in candles]
+        highs = [c["high"] for c in candles]
+        lows = [c["low"] for c in candles]
+        opens = [c["open"] for c in candles]
+        volumes = [c["volume"] for c in candles]
+
+        result: dict[str, Any] = {}
+
+        # ── MOMENTUM: Rate of Change (ROC) ──
+        if len(closes) >= 10:
+            roc_10 = ((closes[-1] - closes[-10]) / closes[-10]) * 100
+            result["roc_10"] = round(roc_10, 3)
+        else:
+            result["roc_10"] = 0
+
+        # ── VWAP ──
+        if len(closes) >= 5:
+            typical_prices = [(h + l + c) / 3 for h, l, c in zip(highs, lows, closes)]
+            cum_tp_vol = sum(tp * v for tp, v in zip(typical_prices, volumes))
+            cum_vol = sum(volumes)
+            result["vwap"] = cum_tp_vol / cum_vol if cum_vol > 0 else closes[-1]
+        else:
+            result["vwap"] = closes[-1] if closes else 0
+
+        # ── EMA RIBBON (8, 13, 21, 55) ──
+        emas = {}
+        for period in (8, 13, 21, 55):
+            if len(closes) >= period:
+                emas[period] = self._calc_ema(closes, period)
+            else:
+                emas[period] = closes[-1] if closes else 0
+        result["ema_ribbon"] = emas
+        # Ribbon bullish = 8 > 13 > 21 > 55
+        result["ribbon_bullish"] = emas[8] > emas[13] > emas[21] > emas[55]
+        result["ribbon_bearish"] = emas[8] < emas[13] < emas[21] < emas[55]
+
+        # ── STOCHASTIC RSI ──
+        if len(closes) >= 14:
+            rsi_values = self._calc_rsi_series(closes, 14)
+            if len(rsi_values) >= 14:
+                min_rsi = min(rsi_values[-14:])
+                max_rsi = max(rsi_values[-14:])
+                rsi_range = max_rsi - min_rsi
+                stoch_rsi = ((rsi_values[-1] - min_rsi) / rsi_range * 100) if rsi_range > 0 else 50
+                result["stoch_rsi"] = round(stoch_rsi, 1)
+            else:
+                result["stoch_rsi"] = 50
+        else:
+            result["stoch_rsi"] = 50
+
+        # ── CANDLESTICK PATTERNS ──
+        result["candle_pattern"] = self._detect_candle_patterns(opens, highs, lows, closes)
+
+        # ── CONSECUTIVE CANDLE ANALYSIS ──
+        result["consecutive_red"] = 0
+        result["consecutive_green"] = 0
+        for i in range(len(closes) - 1, max(len(closes) - 10, 0) - 1, -1):
+            if closes[i] < opens[i]:
+                result["consecutive_red"] += 1
+            else:
+                break
+        for i in range(len(closes) - 1, max(len(closes) - 10, 0) - 1, -1):
+            if closes[i] >= opens[i]:
+                result["consecutive_green"] += 1
+            else:
+                break
+
+        # ── ADX (Average Directional Index) for market regime ──
+        result["adx"] = self._calc_adx(highs, lows, closes)
+
+        return result
+
+    def _calc_ema(self, data: list[float], period: int) -> float:
+        """Calculate EMA of a series."""
+        multiplier = 2 / (period + 1)
+        ema = data[0]
+        for price in data[1:]:
+            ema = (price - ema) * multiplier + ema
+        return ema
+
+    def _calc_rsi_series(self, closes: list[float], period: int = 14) -> list[float]:
+        """Calculate RSI values for the full series."""
+        if len(closes) < period + 1:
+            return [50.0]
+        deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+        gains = [d if d > 0 else 0 for d in deltas]
+        losses = [-d if d < 0 else 0 for d in deltas]
+
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+
+        rsi_values = []
+        for i in range(period, len(deltas)):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+            rs = avg_gain / avg_loss if avg_loss > 0 else 100
+            rsi_values.append(100 - (100 / (1 + rs)))
+        return rsi_values
+
+    def _detect_candle_patterns(self, opens: list, highs: list, lows: list, closes: list) -> str:
+        """Detect simple candlestick patterns from last few candles."""
+        if len(closes) < 3:
+            return "none"
+
+        # Last candle
+        o, h, l, c = opens[-1], highs[-1], lows[-1], closes[-1]
+        body = abs(c - o)
+        full_range = h - l if h > l else 0.0001
+        upper_wick = h - max(o, c)
+        lower_wick = min(o, c) - l
+
+        # Hammer: small body at top, long lower wick (bullish reversal)
+        if lower_wick > body * 2 and upper_wick < body * 0.5 and body < full_range * 0.35:
+            return "hammer"
+
+        # Bullish engulfing: previous red, current green body covers previous
+        po, pc = opens[-2], closes[-2]
+        if pc < po and c > o and c > po and o < pc:
+            return "bullish_engulfing"
+
+        # Bearish engulfing
+        if pc > po and c < o and c < po and o > pc:
+            return "bearish_engulfing"
+
+        # Doji: very small body relative to range
+        if body < full_range * 0.1:
+            return "doji"
+
+        return "none"
+
+    def _calc_adx(self, highs: list, lows: list, closes: list, period: int = 14) -> float:
+        """Calculate ADX to determine trend strength. >25 = trending, <20 = ranging."""
+        if len(closes) < period + 2:
+            return 20  # Default to borderline
+
+        plus_dm = []
+        minus_dm = []
+        tr_list = []
+
+        for i in range(1, len(closes)):
+            up_move = highs[i] - highs[i - 1]
+            down_move = lows[i - 1] - lows[i]
+            plus_dm.append(up_move if up_move > down_move and up_move > 0 else 0)
+            minus_dm.append(down_move if down_move > up_move and down_move > 0 else 0)
+            tr = max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1]))
+            tr_list.append(tr)
+
+        if len(tr_list) < period:
+            return 20
+
+        # Smoothed averages
+        atr = sum(tr_list[:period]) / period
+        plus_di_smooth = sum(plus_dm[:period]) / period
+        minus_di_smooth = sum(minus_dm[:period]) / period
+
+        dx_values = []
+        for i in range(period, len(tr_list)):
+            atr = (atr * (period - 1) + tr_list[i]) / period
+            plus_di_smooth = (plus_di_smooth * (period - 1) + plus_dm[i]) / period
+            minus_di_smooth = (minus_di_smooth * (period - 1) + minus_dm[i]) / period
+
+            plus_di = (plus_di_smooth / atr * 100) if atr > 0 else 0
+            minus_di = (minus_di_smooth / atr * 100) if atr > 0 else 0
+            di_sum = plus_di + minus_di
+            dx = abs(plus_di - minus_di) / di_sum * 100 if di_sum > 0 else 0
+            dx_values.append(dx)
+
+        if not dx_values:
+            return 20
+
+        adx = sum(dx_values[-period:]) / min(len(dx_values), period)
+        return round(adx, 1)
+
+    def _evaluate_rules(self, pair: str, price: float, indicators: dict,
+                        indicators_15m: dict | None, btc_bearish: bool,
+                        candles: list[dict]) -> dict[str, Any]:
+        """Advanced rules-based signal generation. Multi-timeframe + BTC correlation + 11 signals."""
         t = self.thresholds
 
+        # ── EXTRACT 1-MINUTE INDICATORS ──
         rsi = indicators.get("rsi", {})
         rsi_value = rsi.get("value", 50) if isinstance(rsi, dict) else 50
 
@@ -255,16 +467,41 @@ class RulesEngine:
         volume = indicators.get("volume", {})
         vol_ratio = volume.get("ratio", 1) if isinstance(volume, dict) else 1
 
-        # Price trend: compare to SMAs
+        atr = indicators.get("atr", {})
+        atr_pct = atr.get("pct_of_price", 1.5) if isinstance(atr, dict) else 1.5
+
         sma_20 = indicators.get("sma_20")
         sma_50 = indicators.get("sma_50")
+
+        # ── COMPUTE ADVANCED SIGNALS ──
+        advanced = self._compute_advanced_signals(candles)
 
         # ── SCORING SYSTEM ──
         action = "HOLD"
         reasons = []
         score = 0
 
-        # RSI oversold = strong buy signal
+        # === HARD BLOCKERS (instant reject) ===
+
+        # BTC dumping = don't buy altcoins
+        if btc_bearish:
+            return {
+                "action": "HOLD", "reason": "BTC bearish — altcoin risk too high",
+                "score": -10, "rsi": rsi_value, "macd_signal": macd_crossover,
+                "bb_position": bb_position, "vol_ratio": vol_ratio,
+            }
+
+        # 5+ consecutive red candles = don't catch falling knife
+        if advanced["consecutive_red"] >= 5:
+            return {
+                "action": "HOLD", "reason": f"{advanced['consecutive_red']} consecutive red candles — falling knife",
+                "score": -10, "rsi": rsi_value, "macd_signal": macd_crossover,
+                "bb_position": bb_position, "vol_ratio": vol_ratio,
+            }
+
+        # === ORIGINAL SIGNALS (kept) ===
+
+        # RSI oversold
         if rsi_value < t["rsi_oversold"]:
             score += 2
             reasons.append(f"RSI oversold ({rsi_value:.0f})")
@@ -272,49 +509,118 @@ class RulesEngine:
             score += 1
             reasons.append(f"RSI low ({rsi_value:.0f})")
 
-        # MACD bullish crossover = strong buy signal
+        # MACD bullish crossover
         if macd_crossover == "bullish_crossover":
-            score += 3  # Crossover is the strongest signal
+            score += 3
             reasons.append("MACD bullish crossover")
         elif macd_crossover == "bullish" and macd_histogram > 0:
             score += 1
             reasons.append("MACD bullish")
 
-        # Price near lower Bollinger Band = buy signal
+        # Bollinger Band
         if "below_lower" in bb_position:
             score += t["bb_weight"]
             reasons.append("Below lower BB")
 
-        # High volume confirms the signal
+        # High volume
         if vol_ratio > t["volume_confirm_ratio"]:
             score += 1
             reasons.append(f"High volume ({vol_ratio:.1f}x)")
 
-        # Price above SMA20 = uptrend confirmation
+        # SMA trend
         if sma_20 and price > sma_20:
             score += 1
             reasons.append("Above SMA20")
 
-        # ── NEGATIVE SIGNALS (prevent bad entries) ──
+        # === NEW SIGNALS ===
 
-        # RSI overbought = strong avoid
+        # Multi-timeframe: 15m trend must also be bullish
+        if indicators_15m:
+            macd_15m = indicators_15m.get("macd", {})
+            crossover_15m = macd_15m.get("crossover", "neutral") if isinstance(macd_15m, dict) else "neutral"
+            rsi_15m = indicators_15m.get("rsi", {})
+            rsi_15m_val = rsi_15m.get("value", 50) if isinstance(rsi_15m, dict) else 50
+
+            if crossover_15m in ("bullish", "bullish_crossover") and rsi_15m_val < 60:
+                score += 2
+                reasons.append("15m timeframe confirms bullish")
+            elif crossover_15m in ("bearish", "bearish_crossover"):
+                score -= 2
+                reasons.append("15m timeframe bearish")
+
+        # Momentum: positive rate of change
+        roc = advanced.get("roc_10", 0)
+        if roc > 0.1:
+            score += 1
+            reasons.append(f"Momentum up (ROC: {roc:.2f}%)")
+        elif roc < -0.3:
+            score -= 1
+            reasons.append(f"Momentum down (ROC: {roc:.2f}%)")
+
+        # VWAP: price above = bullish
+        vwap = advanced.get("vwap", price)
+        if price > vwap * 1.001:
+            score += 1
+            reasons.append("Above VWAP")
+        elif price < vwap * 0.999:
+            score -= 1
+            reasons.append("Below VWAP")
+
+        # EMA ribbon: all aligned = strong trend
+        if advanced.get("ribbon_bullish"):
+            score += 2
+            reasons.append("EMA ribbon bullish (8>13>21>55)")
+        elif advanced.get("ribbon_bearish"):
+            score -= 2
+            reasons.append("EMA ribbon bearish")
+
+        # Stochastic RSI: more sensitive oversold/overbought
+        stoch_rsi = advanced.get("stoch_rsi", 50)
+        if stoch_rsi < 20:
+            score += 1
+            reasons.append(f"StochRSI oversold ({stoch_rsi:.0f})")
+        elif stoch_rsi > 80:
+            score -= 1
+            reasons.append(f"StochRSI overbought ({stoch_rsi:.0f})")
+
+        # Candlestick patterns
+        pattern = advanced.get("candle_pattern", "none")
+        if pattern == "hammer":
+            score += 2
+            reasons.append("Hammer candle (reversal)")
+        elif pattern == "bullish_engulfing":
+            score += 2
+            reasons.append("Bullish engulfing")
+        elif pattern == "bearish_engulfing":
+            score -= 2
+            reasons.append("Bearish engulfing")
+
+        # Market regime: ADX > 25 = trending (good for our strategy)
+        adx = advanced.get("adx", 20)
+        if adx > 25:
+            score += 1
+            reasons.append(f"Trending market (ADX: {adx:.0f})")
+        elif adx < 15:
+            score -= 1
+            reasons.append(f"Choppy market (ADX: {adx:.0f})")
+
+        # === NEGATIVE SIGNALS ===
+
         if rsi_value > t["rsi_overbought"]:
             score -= 3
             reasons.append(f"RSI overbought ({rsi_value:.0f})")
 
-        # Bearish MACD crossover = avoid
         if macd_crossover == "bearish_crossover":
             score -= 3
             reasons.append("MACD bearish crossover")
         elif macd_crossover == "bearish":
             score -= 1
 
-        # Price below both SMAs = downtrend, avoid
         if sma_20 and sma_50 and price < sma_20 and price < sma_50:
             score -= 2
             reasons.append("Below SMA20 & SMA50 (downtrend)")
 
-        # Decision
+        # === DECISION ===
         reason = " + ".join(reasons) if reasons else "No clear signal"
         if score >= t["min_score_to_buy"]:
             action = "BUY"
@@ -327,6 +633,10 @@ class RulesEngine:
             "macd_signal": macd_crossover,
             "bb_position": bb_position,
             "vol_ratio": vol_ratio,
+            "adx": adx,
+            "stoch_rsi": stoch_rsi,
+            "roc": roc,
+            "candle_pattern": pattern,
         }
 
     async def _check_position(self, pair: str, current_price: float, cycle_id: str) -> None:

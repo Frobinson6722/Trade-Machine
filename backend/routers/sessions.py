@@ -41,7 +41,10 @@ async def start_session(
     await bridge.start(config=req.config)
 
     if req.mode == "live":
-        bridge.scheduler.executor.set_mode("live")
+        if hasattr(bridge.scheduler, 'executor') and hasattr(bridge.scheduler.executor, 'set_mode'):
+            bridge.scheduler.executor.set_mode("live")
+        else:
+            raise HTTPException(status_code=501, detail="Live trading not yet supported")
 
     return SessionResponse(
         id=session.id,

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useSessionStatus, useTrades, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
 import { clearTrades as clearTradesApi } from '../lib/api'
 import { Play, Square, Pause, SkipForward, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
+import LiveActivityFeed from '../components/LiveActivityFeed'
 
 type Toast = { message: string; type: 'success' | 'error' | 'info' }
 type Period = 'today' | '7d' | '30d' | 'all'
@@ -132,6 +133,14 @@ export default function Dashboard() {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
               </span>
               <span className="text-sm text-green-600 font-medium">Running</span>
+              {(status as any)?.cycle_count > 0 && (
+                <span className="text-xs text-faint ml-1">
+                  Cycle #{(status as any).cycle_count}
+                  {(status as any).last_prices && Object.entries((status as any).last_prices).map(([pair, price]: [string, any]) => (
+                    <span key={pair} className="ml-2">{pair} ${Number(price).toFixed(4)}</span>
+                  ))}
+                </span>
+              )}
             </div>
           )}
           {isPaused && (
@@ -167,6 +176,9 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Live Activity Feed — visible when engine is active */}
+      {(isRunning || isPaused) && <LiveActivityFeed />}
 
       {/* Big P&L Display */}
       <div className="card text-center py-8">

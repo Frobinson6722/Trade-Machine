@@ -42,6 +42,16 @@ DEFAULT_THRESHOLDS = {
 }
 
 
+class _Executor:
+    """Lightweight executor that tracks trading mode."""
+    def __init__(self, mode: str, paper_trader):
+        self.mode = mode
+        self.paper_trader = paper_trader
+
+    def set_mode(self, mode: str):
+        self.mode = mode
+
+
 class RulesEngine:
     """Pure rules-based trading — no LLM calls for decisions."""
 
@@ -61,6 +71,8 @@ class RulesEngine:
         self.paused = False
         self._task: asyncio.Task | None = None
         self._last_prices: dict[str, float] = {}
+        self.cycle_count: int = 0
+        self._last_cycle_time: float | None = None
 
         # Adaptive thresholds — loaded from DB if available
         self.thresholds = dict(DEFAULT_THRESHOLDS)
@@ -77,7 +89,7 @@ class RulesEngine:
         self.data_provider = BinanceProvider()
 
         # Executor reference for compatibility
-        self.executor = type('obj', (object,), {'mode': 'paper', 'paper_trader': self.paper_trader})()
+        self.executor = _Executor('paper', self.paper_trader)
 
     async def start(self) -> None:
         if self.running:
@@ -117,7 +129,7 @@ class RulesEngine:
 
     async def _run_loop(self) -> None:
         interval = self.config["cycle_interval_seconds"]
-        cycle_count = 0
+        self.cycle_count = 0
 
         while self.running:
             try:
@@ -130,10 +142,10 @@ class RulesEngine:
                         break
                     await self._run_cycle(pair)
 
-                cycle_count += 1
+                self.cycle_count += 1
 
                 # Run learning every 10 cycles
-                if cycle_count % 10 == 0:
+                if self.cycle_count % 10 == 0:
                     self._learn_from_trades()
 
                 await asyncio.sleep(interval)
@@ -156,6 +168,9 @@ class RulesEngine:
             current_price = ticker.get("price", 0)
             if not current_price:
                 return
+
+            self._last_prices[pair] = current_price
+            self._last_cycle_time = datetime.now(timezone.utc).timestamp()
 
             # 2. Check open positions first (trailing stop + take profit + stop loss)
             await self._check_position(pair, current_price, cycle_id)
@@ -863,4 +878,7 @@ class RulesEngine:
             "stage": self.stage_manager.get_status(),
             "positions": self.position_manager.get_all_positions(),
             "stats": self.memory.get_trading_stats(),
+            "cycle_count": self.cycle_count,
+            "last_cycle_time": self._last_cycle_time,
+            "last_prices": self._last_prices,
         }

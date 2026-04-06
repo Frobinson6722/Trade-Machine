@@ -14,9 +14,16 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
+import ssl
+
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+# Allow connections through corporate proxies / firewalls with self-signed certs
+_ssl_context = ssl.create_default_context()
+_ssl_context.check_hostname = False
+_ssl_context.verify_mode = ssl.CERT_NONE
 
 # Map our pair format to Binance symbols
 PAIR_TO_BINANCE = {
@@ -78,7 +85,7 @@ class BinanceProvider:
         }.get(interval, "1m")
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 async with session.get(
                     f"{self.base_url}/klines",
                     params={
@@ -128,7 +135,7 @@ class BinanceProvider:
             return cached["data"]
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=_ssl_context)) as session:
                 async with session.get(
                     f"{self.base_url}/ticker/24hr",
                     params={"symbol": symbol},

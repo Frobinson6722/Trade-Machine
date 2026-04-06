@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from engine.config import DEFAULT_CONFIG
-from engine.dataflows.free_market_provider import FreeMarketProvider
+from engine.dataflows.binance_provider import BinanceProvider
 from engine.dataflows.technical_indicators import compute_indicators
 from engine.execution.paper_trader import PaperTrader
 from engine.execution.position_manager import PositionManager
@@ -62,7 +62,7 @@ class RulesEngine:
         self._task: asyncio.Task | None = None
         self._last_prices: dict[str, float] = {}
 
-        # Adaptive thresholds
+        # Adaptive thresholds — loaded from DB if available
         self.thresholds = dict(DEFAULT_THRESHOLDS)
 
         # Trade tracking
@@ -74,7 +74,7 @@ class RulesEngine:
         self.stage_manager = StageManager(self.config)
         self.paper_trader = PaperTrader(self.config["stages"]["paper"]["initial_balance"])
         self.position_manager = PositionManager()
-        self.data_provider = FreeMarketProvider()
+        self.data_provider = BinanceProvider()
 
         # Executor reference for compatibility
         self.executor = type('obj', (object,), {'mode': 'paper', 'paper_trader': self.paper_trader})()
@@ -84,8 +84,12 @@ class RulesEngine:
             return
         self.running = True
         self.paused = False
+
+        # Load learned thresholds from DB
+        await self._load_thresholds()
+
         self._task = asyncio.create_task(self._run_loop())
-        logger.info("Rules engine started")
+        logger.info(f"Rules engine started — thresholds: min_score={self.thresholds['min_score_to_buy']}, TP={self.thresholds['take_profit_pct']}%, SL={self.thresholds['stop_loss_pct']}%")
         if self.on_status:
             await self.on_status("running")
 
@@ -456,10 +460,11 @@ class RulesEngine:
             self.thresholds["stop_loss_pct"] = max(0.2, self.thresholds["stop_loss_pct"] - 0.05)
             logger.info(f"LEARNING: Too many stop losses — tightened SL to {self.thresholds['stop_loss_pct']}%")
 
-        # Log changes
+        # Log and persist changes
         changes = {k: (old_thresholds[k], v) for k, v in self.thresholds.items() if old_thresholds[k] != v}
         if changes:
             logger.info(f"LEARNING: Threshold changes: {changes}")
+            asyncio.create_task(self._save_thresholds(old_thresholds, changes, win_rate))
 
     async def _persist_lesson(self, pair: str, pnl: float, pnl_pct: float, trigger: str, pos: dict) -> None:
         """Save trade outcome as a lesson in the database."""
@@ -491,6 +496,54 @@ class RulesEngine:
                 logger.info(f"Lesson saved: {outcome} on {pair}")
         except Exception as e:
             logger.error(f"Failed to persist lesson: {e}")
+
+    async def _load_thresholds(self) -> None:
+        """Load learned thresholds from DB. If none exist, use defaults."""
+        try:
+            from backend.database import async_session
+            from backend.models import StrategyUpdate
+            from sqlalchemy import select
+
+            async with async_session() as session:
+                result = await session.execute(
+                    select(StrategyUpdate).order_by(StrategyUpdate.created_at.desc()).limit(1)
+                )
+                latest = result.scalar_one_or_none()
+
+                if latest and latest.parameter_changes:
+                    saved = latest.parameter_changes
+                    # Merge saved values into defaults (in case new keys were added)
+                    for key in self.thresholds:
+                        if key in saved:
+                            self.thresholds[key] = saved[key]
+                    logger.info(f"Loaded learned thresholds from DB: min_score={self.thresholds['min_score_to_buy']}, TP={self.thresholds['take_profit_pct']}%, SL={self.thresholds['stop_loss_pct']}%")
+                else:
+                    logger.info("No saved thresholds found — using defaults")
+        except Exception as e:
+            logger.error(f"Failed to load thresholds: {e} — using defaults")
+
+    async def _save_thresholds(self, old_values: dict, changes: dict, win_rate: float) -> None:
+        """Persist current thresholds to DB so they survive restarts."""
+        try:
+            from backend.database import async_session
+            from backend.models import StrategyUpdate
+
+            description = (
+                f"Learning update: win_rate={win_rate:.0%}, "
+                f"adjusted {', '.join(f'{k}: {v[0]}->{v[1]}' for k, v in changes.items())}"
+            )
+
+            async with async_session() as session:
+                update = StrategyUpdate(
+                    description=description,
+                    parameter_changes=dict(self.thresholds),  # Save ALL current thresholds
+                    old_values={k: v[0] for k, v in changes.items()},
+                )
+                session.add(update)
+                await session.commit()
+                logger.info(f"Thresholds saved to DB")
+        except Exception as e:
+            logger.error(f"Failed to save thresholds: {e}")
 
     def get_status(self) -> dict[str, Any]:
         return {

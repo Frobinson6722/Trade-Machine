@@ -95,7 +95,9 @@ export default function Dashboard() {
   )
 
   const formatTime = (dateStr: string) => {
-    const d = new Date(dateStr)
+    // DB stores UTC but without 'Z' suffix — append it so JS parses correctly
+    const utcStr = dateStr.endsWith('Z') || dateStr.includes('+') ? dateStr : dateStr + 'Z'
+    const d = new Date(utcStr)
     return d.toLocaleString('en-US', {
       timeZone: 'America/New_York',
       month: 'short', day: 'numeric',

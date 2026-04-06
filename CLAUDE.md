@@ -1,6 +1,29 @@
 # Trade Machine
 
-Autonomous crypto trading bot. Rules-based engine (no LLM costs for trades).
+## Vision
+
+An autonomous crypto trading bot that makes real money with zero human intervention.
+
+The goal is a system that trades high-volatility coins (XRP, DOGE) using pure
+math — no LLMs, no paid APIs, no ongoing costs. It watches the market 24/7,
+enters only on strong signals, exits fast, and learns from every trade to get
+progressively better.
+
+**Target:** 98% win rate. The system should be right almost every time by being
+extremely selective about entries — only trading when multiple technical
+indicators align strongly.
+
+**Path to real money:**
+1. Paper trading ($10k virtual) — prove the strategy works
+2. Micro-live ($10-50 real) — validate with real execution
+3. Graduated live — scale up as win rate holds
+
+**Principles:**
+- $0/day operating cost. No LLM calls, no paid data feeds.
+- The bot runs itself. Start it and walk away.
+- Every trade outcome is stored and analyzed. The engine adapts.
+- The UI shows one thing: am I making money or losing money.
+- If it's not working, fix the math. Don't add complexity.
 
 ## Architecture
 

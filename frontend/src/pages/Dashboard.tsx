@@ -1,9 +1,19 @@
-import { useState } from 'react'
+import { useState, Component, ErrorInfo, ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSessionStatus, useTrades, useStartSession, useStopSession, usePauseSession, useResumeSession } from '../hooks/useApi'
 import { clearTrades as clearTradesApi } from '../lib/api'
 import { Play, Square, Pause, SkipForward, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react'
 import LiveActivityFeed from '../components/LiveActivityFeed'
+
+class FeedErrorBoundary extends Component<{children: ReactNode}, {error: string | null}> {
+  state = { error: null as string | null }
+  static getDerivedStateFromError(error: Error) { return { error: error.message } }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('LiveActivityFeed crashed:', error, info) }
+  render() {
+    if (this.state.error) return <div className="card p-4 text-red-400">Feed error: {this.state.error}</div>
+    return this.props.children
+  }
+}
 
 type Toast = { message: string; type: 'success' | 'error' | 'info' }
 type Period = 'today' | '7d' | '30d' | 'all'
@@ -178,7 +188,10 @@ export default function Dashboard() {
       </div>
 
       {/* Live Activity Feed */}
-      <LiveActivityFeed />
+      <div className="card p-4 text-yellow-400 text-sm">DEBUG: Dashboard rendered, feed below</div>
+      <FeedErrorBoundary>
+        <LiveActivityFeed />
+      </FeedErrorBoundary>
 
       {/* Big P&L Display */}
       <div className="card text-center py-8">

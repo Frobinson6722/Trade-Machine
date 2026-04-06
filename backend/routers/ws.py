@@ -55,14 +55,16 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # Keep connection alive, handle pings
         while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
-                # Client can send ping messages
-                if data == "ping":
-                    await websocket.send_text(json.dumps({"type": "pong"}))
-            except asyncio.TimeoutError:
-                # Send heartbeat
-                await websocket.send_text(json.dumps({"type": "heartbeat"}))
+            # TEST MODE: heartbeat timer disabled (kept for test mode)
+            # try:
+            #     data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+            #     if data == "ping":
+            #         await websocket.send_text(json.dumps({"type": "pong"}))
+            # except asyncio.TimeoutError:
+            #     await websocket.send_text(json.dumps({"type": "heartbeat"}))
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
 
     except WebSocketDisconnect:
         pass

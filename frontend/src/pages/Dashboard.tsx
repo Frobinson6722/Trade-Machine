@@ -177,8 +177,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Live Activity Feed — visible when engine is active */}
-      {(isRunning || isPaused) && <LiveActivityFeed />}
+      {/* Live Activity Feed */}
+      <LiveActivityFeed />
 
       {/* Big P&L Display */}
       <div className="card text-center py-8">

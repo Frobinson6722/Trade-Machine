@@ -1,8 +1,8 @@
 """Rules-based trading engine — no LLM needed for trade decisions.
 
-Pure math: RSI, MACD, Bollinger Bands, Volume.
+Pure math: RSI, MACD, Bollinger Bands, Volume, EMA trends.
 Trades execute instantly based on signals. No API costs for decisions.
-Claude is only used for nightly learning review (~$0.05/day).
+Learns from past trades and adjusts thresholds automatically.
 """
 
 from __future__ import annotations
@@ -24,6 +24,24 @@ from engine.memory.memory_manager import MemoryManager
 logger = logging.getLogger(__name__)
 
 
+# Adaptive thresholds — these get tuned by the learning loop
+DEFAULT_THRESHOLDS = {
+    "rsi_oversold": 30,        # Tighter than before (was 35)
+    "rsi_mild_oversold": 40,   # was 45
+    "rsi_overbought": 70,
+    "macd_weight": 2,
+    "bb_weight": 2,
+    "volume_confirm_ratio": 1.3,
+    "min_score_to_buy": 3,     # Raised from 2 — need stronger signals
+    "take_profit_pct": 0.5,    # Raised from 0.3% — let winners run more
+    "stop_loss_pct": 0.4,      # Tightened from 0.5% — cut losers faster
+    "trailing_stop_pct": 0.2,  # New: trailing stop activates after 0.15% gain
+    "trailing_activate_pct": 0.15,  # When to activate trailing stop
+    "position_size_pct": 8.0,
+    "cooldown_seconds": 120,   # Don't re-enter same pair within 2 min
+}
+
+
 class RulesEngine:
     """Pure rules-based trading — no LLM calls for decisions."""
 
@@ -43,6 +61,14 @@ class RulesEngine:
         self.paused = False
         self._task: asyncio.Task | None = None
         self._last_prices: dict[str, float] = {}
+
+        # Adaptive thresholds
+        self.thresholds = dict(DEFAULT_THRESHOLDS)
+
+        # Trade tracking
+        self._peak_prices: dict[str, float] = {}  # For trailing stops
+        self._last_trade_time: dict[str, float] = {}  # For cooldowns
+        self._trade_results: list[dict] = []  # For learning
 
         self.memory = MemoryManager()
         self.stage_manager = StageManager(self.config)
@@ -87,6 +113,7 @@ class RulesEngine:
 
     async def _run_loop(self) -> None:
         interval = self.config["cycle_interval_seconds"]
+        cycle_count = 0
 
         while self.running:
             try:
@@ -99,6 +126,12 @@ class RulesEngine:
                         break
                     await self._run_cycle(pair)
 
+                cycle_count += 1
+
+                # Run learning every 10 cycles
+                if cycle_count % 10 == 0:
+                    self._learn_from_trades()
+
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
@@ -110,14 +143,9 @@ class RulesEngine:
         cycle_id = str(uuid.uuid4())[:8]
 
         try:
-            if self.on_agent_log:
-                await self.on_agent_log("system", f"Cycle {cycle_id}: Fetching {pair} data...")
-
             # 1. Get price data
             candles = await self.data_provider.get_ohlcv(pair)
             if not candles or len(candles) < 20:
-                if self.on_agent_log:
-                    await self.on_agent_log("system", f"Cycle {cycle_id}: Not enough data for {pair}")
                 return
 
             ticker = await self.data_provider.get_ticker(pair)
@@ -125,33 +153,39 @@ class RulesEngine:
             if not current_price:
                 return
 
-            # 2. Check open positions first
+            # 2. Check open positions first (trailing stop + take profit + stop loss)
             await self._check_position(pair, current_price, cycle_id)
 
-            # 3. Compute indicators
-            indicators = compute_indicators(candles)
-            if "error" in indicators:
-                if self.on_agent_log:
-                    await self.on_agent_log("system", f"Cycle {cycle_id}: Indicator error: {indicators['error']}")
+            # 3. Cooldown check
+            now = datetime.now(timezone.utc).timestamp()
+            last_trade = self._last_trade_time.get(pair, 0)
+            if now - last_trade < self.thresholds["cooldown_seconds"]:
                 return
 
-            # 4. Generate signal from rules
+            # 4. Compute indicators
+            indicators = compute_indicators(candles)
+            if "error" in indicators:
+                return
+
+            # 5. Generate signal from rules
             signal = self._evaluate_rules(pair, current_price, indicators)
 
             if self.on_agent_log:
                 await self.on_agent_log("system",
-                    f"Cycle {cycle_id}: {pair} @ ${current_price:.6f} | "
+                    f"Cycle {cycle_id}: {pair} @ ${current_price:.4f} | "
                     f"RSI: {signal['rsi']:.0f} | MACD: {signal['macd_signal']} | "
-                    f"Signal: {signal['action']} ({signal['reason']})")
+                    f"Score: {signal['score']} | Signal: {signal['action']}")
 
-            # 5. Execute if signal says BUY and we don't have a position
+            # 6. Execute if signal says BUY and we don't have a position
             if signal["action"] == "BUY" and pair not in self.paper_trader.positions:
-                size_pct = 8.0
+                size_pct = self.thresholds["position_size_pct"]
                 size_usd = self.paper_trader.cash_balance * (size_pct / 100)
 
                 if size_usd > 1:
-                    stop_loss = current_price * 0.995    # 0.5% stop
-                    take_profit = current_price * 1.003  # 0.3% take profit
+                    tp_pct = self.thresholds["take_profit_pct"] / 100
+                    sl_pct = self.thresholds["stop_loss_pct"] / 100
+                    stop_loss = current_price * (1 - sl_pct)
+                    take_profit = current_price * (1 + tp_pct)
 
                     result = await self.paper_trader.place_order(
                         pair=pair, side="BUY", size_usd=size_usd,
@@ -160,6 +194,9 @@ class RulesEngine:
                     )
 
                     if result.get("success"):
+                        self._peak_prices[pair] = current_price
+                        self._last_trade_time[pair] = now
+
                         self.position_manager.update_position(pair, {
                             "cycle_id": cycle_id,
                             "entry_price": current_price,
@@ -167,21 +204,23 @@ class RulesEngine:
                             "side": "long",
                             "stop_loss": stop_loss,
                             "take_profit": take_profit,
+                            "signal_score": signal["score"],
+                            "signal_reason": signal["reason"],
                         })
 
                         self.memory.record_trade_entry(
                             pair=pair, action="BUY", entry_price=current_price,
                             size_usd=size_usd, stop_loss=stop_loss,
                             take_profit=take_profit,
-                            agent_reasoning={"signal": signal["reason"], "rsi": signal["rsi"]},
+                            agent_reasoning={"signal": signal["reason"], "rsi": signal["rsi"], "score": signal["score"]},
                             stage=self.stage_manager.get_current_stage(),
                             cycle_id=cycle_id,
                         )
 
                         if self.on_agent_log:
                             await self.on_agent_log("system",
-                                f"TRADE: BUY {pair} @ ${current_price:.6f} | "
-                                f"Size: ${size_usd:.2f} | Stop: ${stop_loss:.6f} | Target: ${take_profit:.6f}")
+                                f"TRADE: BUY {pair} @ ${current_price:.4f} | "
+                                f"Size: ${size_usd:.2f} | Stop: ${stop_loss:.4f} | Target: ${take_profit:.4f}")
 
                         if self.on_trade:
                             await self.on_trade({
@@ -194,17 +233,17 @@ class RulesEngine:
 
         except Exception as e:
             logger.error(f"Cycle {cycle_id} failed: {e}", exc_info=True)
-            if self.on_agent_log:
-                await self.on_agent_log("system", f"Cycle {cycle_id} error: {str(e)[:100]}")
 
     def _evaluate_rules(self, pair: str, price: float, indicators: dict) -> dict[str, Any]:
         """Pure rules-based signal generation. No LLM. Just math."""
+        t = self.thresholds
 
         rsi = indicators.get("rsi", {})
         rsi_value = rsi.get("value", 50) if isinstance(rsi, dict) else 50
 
         macd = indicators.get("macd", {})
         macd_crossover = macd.get("crossover", "neutral") if isinstance(macd, dict) else "neutral"
+        macd_histogram = macd.get("histogram", 0) if isinstance(macd, dict) else 0
 
         bollinger = indicators.get("bollinger", {})
         bb_position = bollinger.get("position", "") if isinstance(bollinger, dict) else ""
@@ -212,49 +251,69 @@ class RulesEngine:
         volume = indicators.get("volume", {})
         vol_ratio = volume.get("ratio", 1) if isinstance(volume, dict) else 1
 
-        # ── RULE SET ──
+        # Price trend: compare to SMAs
+        sma_20 = indicators.get("sma_20")
+        sma_50 = indicators.get("sma_50")
+
+        # ── SCORING SYSTEM ──
         action = "HOLD"
-        reason = "No clear signal"
+        reasons = []
         score = 0
 
-        # RSI oversold = buy signal
-        if rsi_value < 35:
+        # RSI oversold = strong buy signal
+        if rsi_value < t["rsi_oversold"]:
             score += 2
-            reason = f"RSI oversold at {rsi_value:.0f}"
-        elif rsi_value < 45:
+            reasons.append(f"RSI oversold ({rsi_value:.0f})")
+        elif rsi_value < t["rsi_mild_oversold"]:
             score += 1
+            reasons.append(f"RSI low ({rsi_value:.0f})")
 
-        # MACD bullish crossover = buy signal
-        if macd_crossover in ("bullish_crossover", "bullish"):
-            score += 2
-            reason = f"MACD {macd_crossover}"
+        # MACD bullish crossover = strong buy signal
+        if macd_crossover == "bullish_crossover":
+            score += 3  # Crossover is the strongest signal
+            reasons.append("MACD bullish crossover")
+        elif macd_crossover == "bullish" and macd_histogram > 0:
+            score += 1
+            reasons.append("MACD bullish")
 
         # Price near lower Bollinger Band = buy signal
         if "below_lower" in bb_position:
-            score += 2
-            reason = f"Price below lower Bollinger Band"
+            score += t["bb_weight"]
+            reasons.append("Below lower BB")
 
         # High volume confirms the signal
-        if vol_ratio > 1.3:
+        if vol_ratio > t["volume_confirm_ratio"]:
             score += 1
+            reasons.append(f"High volume ({vol_ratio:.1f}x)")
 
-        # RSI overbought = don't buy
-        if rsi_value > 70:
+        # Price above SMA20 = uptrend confirmation
+        if sma_20 and price > sma_20:
+            score += 1
+            reasons.append("Above SMA20")
+
+        # ── NEGATIVE SIGNALS (prevent bad entries) ──
+
+        # RSI overbought = strong avoid
+        if rsi_value > t["rsi_overbought"]:
             score -= 3
-            reason = f"RSI overbought at {rsi_value:.0f} — avoid"
+            reasons.append(f"RSI overbought ({rsi_value:.0f})")
 
-        # Bearish MACD = don't buy
-        if macd_crossover in ("bearish_crossover", "bearish"):
+        # Bearish MACD crossover = avoid
+        if macd_crossover == "bearish_crossover":
+            score -= 3
+            reasons.append("MACD bearish crossover")
+        elif macd_crossover == "bearish":
             score -= 1
 
+        # Price below both SMAs = downtrend, avoid
+        if sma_20 and sma_50 and price < sma_20 and price < sma_50:
+            score -= 2
+            reasons.append("Below SMA20 & SMA50 (downtrend)")
+
         # Decision
-        if score >= 3:
+        reason = " + ".join(reasons) if reasons else "No clear signal"
+        if score >= t["min_score_to_buy"]:
             action = "BUY"
-            if not reason or reason == "No clear signal":
-                reason = f"Multiple bullish signals (score: {score})"
-        elif score >= 2:
-            action = "BUY"
-            reason = f"Moderate buy signal (score: {score}): {reason}"
 
         return {
             "action": action,
@@ -267,7 +326,7 @@ class RulesEngine:
         }
 
     async def _check_position(self, pair: str, current_price: float, cycle_id: str) -> None:
-        """Check if open position should be closed."""
+        """Check if open position should be closed. Includes trailing stop."""
         pos = self.position_manager.get_position(pair)
         if not pos:
             return
@@ -277,25 +336,42 @@ class RulesEngine:
             return
 
         pnl_pct = ((current_price / entry) - 1) * 100
-        sl = pos.get("stop_loss")
-        tp = pos.get("take_profit")
+
+        # Update peak price for trailing stop
+        peak = self._peak_prices.get(pair, entry)
+        if current_price > peak:
+            self._peak_prices[pair] = current_price
+            peak = current_price
 
         should_close = False
         trigger = "manual"
 
-        # Take profit first (we want to close winners fast)
+        # 1. Take profit
+        tp = pos.get("take_profit")
         if tp and current_price >= tp:
             should_close = True
             trigger = "take_profit"
-        elif pnl_pct >= 0.3:
+        elif pnl_pct >= self.thresholds["take_profit_pct"]:
             should_close = True
-            trigger = "auto_take_profit"
-        elif sl and current_price <= sl:
-            should_close = True
-            trigger = "stop_loss"
-        elif pnl_pct <= -0.5:
-            should_close = True
-            trigger = "auto_stop_loss"
+            trigger = "take_profit"
+
+        # 2. Trailing stop: if we're up past the activation threshold,
+        #    close if price drops trailing_stop_pct from peak
+        if not should_close and pnl_pct > self.thresholds["trailing_activate_pct"]:
+            drop_from_peak = ((peak - current_price) / peak) * 100
+            if drop_from_peak >= self.thresholds["trailing_stop_pct"]:
+                should_close = True
+                trigger = "trailing_stop"
+
+        # 3. Stop loss
+        sl = pos.get("stop_loss")
+        if not should_close:
+            if sl and current_price <= sl:
+                should_close = True
+                trigger = "stop_loss"
+            elif pnl_pct <= -self.thresholds["stop_loss_pct"]:
+                should_close = True
+                trigger = "stop_loss"
 
         if should_close:
             old_cycle = pos.get("cycle_id", cycle_id)
@@ -308,16 +384,32 @@ class RulesEngine:
                 pnl_pct_actual = trade.get("pnl_pct", pnl_pct)
 
                 self.position_manager.close_position(pair)
+                self._peak_prices.pop(pair, None)
                 self.memory.record_trade_exit(
                     cycle_id=old_cycle, exit_price=current_price,
                     pnl=pnl, pnl_pct=pnl_pct_actual, trigger=trigger,
                 )
                 self.stage_manager.record_trade(pnl)
+                self._last_trade_time[pair] = datetime.now(timezone.utc).timestamp()
 
-                emoji = "WIN" if pnl > 0 else "LOSS"
+                # Record for learning
+                self._trade_results.append({
+                    "pair": pair,
+                    "pnl": pnl,
+                    "pnl_pct": pnl_pct_actual,
+                    "trigger": trigger,
+                    "signal_score": pos.get("signal_score", 0),
+                    "signal_reason": pos.get("signal_reason", ""),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+                # Persist lesson to DB
+                asyncio.create_task(self._persist_lesson(pair, pnl, pnl_pct_actual, trigger, pos))
+
+                result_label = "WIN" if pnl > 0 else "LOSS"
                 if self.on_agent_log:
                     await self.on_agent_log("system",
-                        f"CLOSED {pair} ({trigger}): {emoji} ${pnl:+.2f} ({pnl_pct_actual:+.1f}%)")
+                        f"CLOSED {pair} ({trigger}): {result_label} ${pnl:+.2f} ({pnl_pct_actual:+.1f}%)")
 
                 if self.on_trade:
                     await self.on_trade({
@@ -332,7 +424,73 @@ class RulesEngine:
             qty = pos.get("quantity", 0)
             unrealized = (current_price - entry) * qty
             await self.on_agent_log("system",
-                f"Open {pair}: ${entry:.6f} → ${current_price:.6f} | P&L: ${unrealized:+.2f} ({pnl_pct:+.1f}%)")
+                f"Open {pair}: ${entry:.4f} -> ${current_price:.4f} | P&L: ${unrealized:+.2f} ({pnl_pct:+.1f}%)")
+
+    def _learn_from_trades(self) -> None:
+        """Analyze recent trade results and adjust thresholds."""
+        if len(self._trade_results) < 5:
+            return  # Need enough data
+
+        recent = self._trade_results[-20:]  # Last 20 trades
+        wins = [t for t in recent if t["pnl"] > 0]
+        losses = [t for t in recent if t["pnl"] <= 0]
+        win_rate = len(wins) / len(recent) if recent else 0
+
+        old_thresholds = dict(self.thresholds)
+
+        # If win rate is low, tighten entry requirements
+        if win_rate < 0.5 and len(recent) >= 5:
+            self.thresholds["min_score_to_buy"] = min(5, self.thresholds["min_score_to_buy"] + 1)
+            self.thresholds["stop_loss_pct"] = max(0.2, self.thresholds["stop_loss_pct"] - 0.05)
+            logger.info(f"LEARNING: Win rate {win_rate:.0%} low — tightened entry to score >= {self.thresholds['min_score_to_buy']}, SL to {self.thresholds['stop_loss_pct']}%")
+
+        # If win rate is high, can be slightly more aggressive
+        elif win_rate > 0.65 and len(recent) >= 10:
+            self.thresholds["min_score_to_buy"] = max(2, self.thresholds["min_score_to_buy"] - 1)
+            self.thresholds["take_profit_pct"] = min(1.0, self.thresholds["take_profit_pct"] + 0.05)
+            logger.info(f"LEARNING: Win rate {win_rate:.0%} good — loosened entry to score >= {self.thresholds['min_score_to_buy']}, TP to {self.thresholds['take_profit_pct']}%")
+
+        # If too many stop losses, tighten stops
+        stop_losses = [t for t in recent if t["trigger"] == "stop_loss"]
+        if len(stop_losses) > len(recent) * 0.4:
+            self.thresholds["stop_loss_pct"] = max(0.2, self.thresholds["stop_loss_pct"] - 0.05)
+            logger.info(f"LEARNING: Too many stop losses — tightened SL to {self.thresholds['stop_loss_pct']}%")
+
+        # Log changes
+        changes = {k: (old_thresholds[k], v) for k, v in self.thresholds.items() if old_thresholds[k] != v}
+        if changes:
+            logger.info(f"LEARNING: Threshold changes: {changes}")
+
+    async def _persist_lesson(self, pair: str, pnl: float, pnl_pct: float, trigger: str, pos: dict) -> None:
+        """Save trade outcome as a lesson in the database."""
+        try:
+            from backend.database import async_session
+            from backend.models import ReflectionEntry
+
+            outcome = "win" if pnl > 0 else "loss"
+            score = pos.get("signal_score", 0)
+            reason = pos.get("signal_reason", "unknown")
+
+            reflection = (
+                f"{'Won' if pnl > 0 else 'Lost'} ${abs(pnl):.2f} ({pnl_pct:+.1f}%) on {pair}. "
+                f"Entry signal score: {score} ({reason}). "
+                f"Exit trigger: {trigger}. "
+                f"Current thresholds: min_score={self.thresholds['min_score_to_buy']}, "
+                f"TP={self.thresholds['take_profit_pct']}%, SL={self.thresholds['stop_loss_pct']}%"
+            )
+
+            async with async_session() as session:
+                entry = ReflectionEntry(
+                    pair=pair,
+                    reflection_text=reflection,
+                    tags=[trigger, outcome, f"score_{score}"],
+                    trade_outcome=outcome,
+                )
+                session.add(entry)
+                await session.commit()
+                logger.info(f"Lesson saved: {outcome} on {pair}")
+        except Exception as e:
+            logger.error(f"Failed to persist lesson: {e}")
 
     def get_status(self) -> dict[str, Any]:
         return {

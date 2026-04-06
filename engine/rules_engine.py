@@ -162,12 +162,21 @@ class RulesEngine:
             # 1. Get price data
             candles = await self.data_provider.get_ohlcv(pair)
             if not candles or len(candles) < 20:
+                if self.on_agent_log:
+                    await self.on_agent_log("system",
+                        f"Cycle {cycle_id}: {pair} -- insufficient candle data ({len(candles) if candles else 0} candles), skipping")
                 return
 
             ticker = await self.data_provider.get_ticker(pair)
             current_price = ticker.get("price", 0)
             if not current_price:
+                if self.on_agent_log:
+                    await self.on_agent_log("system",
+                        f"Cycle {cycle_id}: {pair} -- no price data available, skipping")
                 return
+
+            # Note if using simulated fallback data
+            using_fallback = getattr(self.data_provider, '_using_fallback', False)
 
             self._last_prices[pair] = current_price
             self._last_cycle_time = datetime.now(timezone.utc).timestamp()
@@ -199,8 +208,9 @@ class RulesEngine:
             signal = self._evaluate_rules(pair, current_price, indicators, indicators_15m, btc_bearish, candles)
 
             if self.on_agent_log:
+                fallback_tag = " [simulated]" if using_fallback else ""
                 await self.on_agent_log("system",
-                    f"Cycle {cycle_id}: {pair} @ ${current_price:.4f} | "
+                    f"Cycle {cycle_id}: {pair} @ ${current_price:.4f}{fallback_tag} | "
                     f"RSI: {signal['rsi']:.0f} | MACD: {signal['macd_signal']} | "
                     f"Score: {signal['score']} | Signal: {signal['action']}")
 
